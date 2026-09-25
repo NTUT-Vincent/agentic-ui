@@ -1,0 +1,23 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body { background: #f6f7f9; color: #171717; font-family: Arial, Helvetica, sans-serif; }
+button, input { font: inherit; }
+main { min-height: 100vh; }
+.chat-shell { width: min(900px, calc(100% - 32px)); min-height: 100vh; margin: 0 auto; display: flex; flex-direction: column; }
+.chat-header { padding: 32px 0 20px; border-bottom: 1px solid #ddd; }
+.chat-header h1 { margin: 0; font-size: 24px; }
+.chat-header p { margin: 6px 0 0; color: #777; }
+.conversation { flex: 1; padding: 32px 0 140px; }
+.empty-state { padding: 80px 0; text-align: center; color: #666; }
+.empty-state h2 { color: #222; }
+.message { margin-bottom: 24px; line-height: 1.6; }
+.message-role { display: block; margin-bottom: 6px; font-size: 12px; font-weight: 700; color: #777; text-transform: uppercase; }
+.message.user { margin-left: 20%; }
+.message.user > div { background: #eceef1; padding: 14px 16px; border-radius: 16px; }
+.message.assistant { margin-right: 20%; }
+.a2ui-surface { margin: 24px 0; padding: 20px; background: white; border: 1px solid #ddd; border-radius: 16px; }
+.status { color: #777; font-size: 14px; }
+.composer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); width: min(900px, calc(100% - 32px)); display: flex; gap: 10px; padding: 12px; background: white; border: 1px solid #ddd; border-radius: 18px; box-shadow: 0 12px 40px rgba(0,0,0,.08); }
+.composer input { flex: 1; padding: 10px 12px; border: 0; outline: none; background: transparent; }
+.composer button { border: 0; border-radius: 12px; padding: 10px 18px; background: #171717; color: white; cursor: pointer; }
+.composer button:disabled { opacity: .5; }
