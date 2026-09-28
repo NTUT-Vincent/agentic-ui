@@ -10,12 +10,23 @@ export const PLACE_CATEGORIES = [
   "museum",
 ] as const;
 
+export const MAX_AGENT_STEPS = 5;
+
 export type PlaceCategory = (typeof PLACE_CATEGORIES)[number];
 export type EnvironmentFilter = "all" | "indoor" | "outdoor";
 export type PlaceEnvironment = Exclude<EnvironmentFilter, "all"> | "unknown";
 export type DayFlowViewMode = "split" | "map" | "list";
 export type DayFlowSort = "distance" | "name";
 export type MutationSource = "human" | "agent";
+export type AgentDependency = "location" | "places" | "weather";
+
+export type AgentRunState = {
+  goal: string | null;
+  step: number;
+  maxSteps: number;
+  previousRunId: string | null;
+  waitingFor: AgentDependency[];
+};
 
 export type GeoLocation = {
   query: string;
@@ -48,6 +59,7 @@ export type SharedAppState = {
 export type RuntimeState = {
   chatOpen: boolean;
   agentStatus: "idle" | "running" | "error";
+  agentRun: AgentRunState;
   lastMutation: {
     source: MutationSource;
     paths: string[];

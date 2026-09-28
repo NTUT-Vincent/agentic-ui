@@ -1,3 +1,4 @@
+import { MAX_AGENT_STEPS } from "./types";
 import type { RuntimeState, SharedAppState } from "./types";
 
 export const initialSharedAppState: SharedAppState = {
@@ -23,5 +24,12 @@ export const initialSharedAppState: SharedAppState = {
 export const initialRuntimeState: RuntimeState = {
   chatOpen: false,
   agentStatus: "idle",
+  agentRun: {
+    goal: null,
+    step: 0,
+    maxSteps: MAX_AGENT_STEPS,
+    previousRunId: null,
+    waitingFor: [],
+  },
   lastMutation: null,
 };
