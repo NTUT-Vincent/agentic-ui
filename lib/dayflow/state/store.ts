@@ -5,6 +5,7 @@ import { create } from "zustand";
 import { initialRuntimeState, initialSharedAppState } from "./initial-state";
 import { sharedAppStateSchema } from "./schema";
 import type {
+  AgentDependency,
   DayFlowSort,
   DayFlowViewMode,
   EnvironmentFilter,
@@ -57,6 +58,11 @@ type DayFlowStore = {
   removePlaceFromPlan: (placeId: string) => void;
   setChatOpen: (open: boolean) => void;
   setAgentStatus: (status: RuntimeState["agentStatus"]) => void;
+  beginAgentRun: (goal: string) => void;
+  setAgentWaiting: (waitingFor: AgentDependency[], step: number, previousRunId: string) => void;
+  advanceAgentRun: (step: number, previousRunId: string | null) => void;
+  finishAgentRun: () => void;
+  cancelAgentRun: () => void;
   applyAgentSnapshot: (snapshot: unknown) => void;
   applyAgentDelta: (delta: JsonPatchOperation[]) => void;
 };
@@ -156,6 +162,70 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
 
   setAgentStatus(agentStatus) {
     set((state) => ({ runtime: { ...state.runtime, agentStatus } }));
+  },
+
+  beginAgentRun(goal) {
+    set((state) => ({
+      runtime: {
+        ...state.runtime,
+        agentStatus: "running",
+        agentRun: {
+          ...initialRuntimeState.agentRun,
+          goal,
+          step: 1,
+        },
+      },
+    }));
+  },
+
+  setAgentWaiting(waitingFor, step, previousRunId) {
+    set((state) => ({
+      runtime: {
+        ...state.runtime,
+        agentStatus: "running",
+        agentRun: {
+          ...state.runtime.agentRun,
+          step,
+          previousRunId,
+          waitingFor,
+        },
+      },
+    }));
+  },
+
+  advanceAgentRun(step, previousRunId) {
+    set((state) => ({
+      runtime: {
+        ...state.runtime,
+        agentStatus: "running",
+        agentRun: {
+          ...state.runtime.agentRun,
+          step,
+          previousRunId,
+          waitingFor: [],
+        },
+      },
+    }));
+  },
+
+  finishAgentRun() {
+    set((state) => ({
+      runtime: {
+        ...state.runtime,
+        agentStatus: "idle",
+        agentRun: initialRuntimeState.agentRun,
+      },
+    }));
+  },
+
+  cancelAgentRun() {
+    set((state) => ({
+      runtime: {
+        ...state.runtime,
+        agentStatus: "error",
+        agentRun: initialRuntimeState.agentRun,
+      },
+    }));
   },
 
   applyAgentSnapshot(snapshot) {
