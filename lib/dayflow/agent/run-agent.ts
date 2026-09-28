@@ -9,8 +9,8 @@ import {
   applyActionToState,
   buildActionDelta,
   dependenciesForAction,
+  parseUpdateAppStateInput,
   type UpdateAppStateAction,
-  updateAppStateSchema,
   updateAppStateTool,
 } from "./update-state-tool";
 
@@ -149,6 +149,21 @@ export async function runDayFlowAgent(opts: {
 
 Complete the user's goal by operating the existing UI with update_app_state. The tool accepts an ordered actions array. Use multiple actions in one tool call when the CURRENT state and context already contain everything needed. Never invent place IDs, ratings, reviews, or facts. Only select or add place IDs present in CONTEXT.visiblePlaces.
 
+Each action MUST include the value field that matches its type:
+- set_location -> locationQuery
+- set_categories -> categories
+- set_radius -> radiusKm
+- set_environment -> environment
+- set_sort -> sortBy
+- set_view -> view
+- select_place / add_to_plan / remove_from_plan -> placeId
+- reset_filters -> no extra value field
+
+Examples:
+{"actions":[{"type":"set_location","locationQuery":"Tokyo"}],"continueAfterRefresh":true}
+{"actions":[{"type":"set_categories","categories":["cafe"]},{"type":"set_radius","radiusKm":2}],"continueAfterRefresh":true}
+{"actions":[{"type":"set_view","view":"map"}],"message":"Switched to map view."}
+
 Some actions change the context available to you:
 - set_location requires the browser to geocode and refresh places/weather.
 - set_radius refreshes nearby places.
@@ -156,7 +171,7 @@ Some actions change the context available to you:
 
 If fresh context is required before the remaining goal can be completed, include only the safe actions that can be executed now and set continueAfterRefresh=true. Do not guess a place ID from stale context. On a continuation step, inspect the new STATE and CONTEXT, do not repeat actions that are already satisfied, and continue only the unfinished work.
 
-Prefer concise, useful action sequences. Keep the final message short. This is execution step ${opts.step} of at most ${MAX_AGENT_STEPS}.${opts.previousRunId ? ` Previous run: ${opts.previousRunId}.` : ""}
+Prefer concise, useful action sequences. The optional message should be short. This is execution step ${opts.step} of at most ${MAX_AGENT_STEPS}.${opts.previousRunId ? ` Previous run: ${opts.previousRunId}.` : ""}
 
 STATE:
 ${JSON.stringify(opts.state)}
@@ -172,7 +187,7 @@ ${JSON.stringify(opts.context)}`),
     return;
   }
 
-  const input = updateAppStateSchema.parse(call.args);
+  const input = parseUpdateAppStateInput(call.args);
   let workingState = opts.state;
   const refreshDependencies = new Set<AgentDependency>();
 
@@ -196,5 +211,5 @@ ${JSON.stringify(opts.context)}`),
     return;
   }
 
-  sendText(opts.send, input.message);
+  sendText(opts.send, input.message ?? "Done.");
 }
