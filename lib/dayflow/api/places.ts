@@ -94,6 +94,7 @@ export async function getPlaces(
     headers: {
       Accept: "application/json",
     },
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
