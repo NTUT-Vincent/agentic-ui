@@ -6,7 +6,7 @@ import { MAX_AGENT_STEPS } from "@/lib/dayflow/state/types";
 import type { DayFlowAgentContext } from "@/lib/dayflow/agent/context";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type ContinuationInput = {
   goal?: string;
@@ -44,6 +44,17 @@ export async function POST(request: Request) {
   const context = body.context ?? { weather: null, visiblePlaces: [] };
   const threadId = body.threadId ?? crypto.randomUUID();
   const runId = crypto.randomUUID();
+  const startedAt = Date.now();
+
+  console.log("[DayFlow][run:start]", {
+    runId,
+    threadId,
+    step,
+    goal,
+    previousRunId: body.continuation?.previousRunId ?? null,
+    visiblePlaceCount: context.visiblePlaces.length,
+    hasWeather: context.weather !== null,
+  });
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -61,7 +72,18 @@ export async function POST(request: Request) {
           send,
         });
         send({ type: EventType.RUN_FINISHED, threadId, runId });
+        console.log("[DayFlow][run:finish]", {
+          runId,
+          step,
+          durationMs: Date.now() - startedAt,
+        });
       } catch (error) {
+        console.error("[DayFlow][run:error]", {
+          runId,
+          step,
+          durationMs: Date.now() - startedAt,
+          error,
+        });
         send({
           type: EventType.RUN_ERROR,
           message: error instanceof Error ? error.message : "Unknown error",

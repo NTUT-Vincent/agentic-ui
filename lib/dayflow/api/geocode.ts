@@ -6,7 +6,10 @@ export async function geocodeCity(query: string): Promise<GeocodeResult[]> {
   url.searchParams.set("count", "5");
   url.searchParams.set("language", "en");
   url.searchParams.set("format", "json");
-  const response = await fetch(url, { next: { revalidate: 3600 } });
+  const response = await fetch(url, {
+    next: { revalidate: 3600 },
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) throw new Error(`Geocoding failed: ${response.status}`);
   const data = (await response.json()) as { results?: OpenMeteoGeocode[] };
   return (data.results ?? []).map((item) => ({

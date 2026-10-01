@@ -10,6 +10,8 @@ import type {
 } from "@/lib/dayflow/state/types";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 
+const CONTEXT_REFRESH_TIMEOUT_MS = 30_000;
+
 type ChatMessage = {
   id: string;
   role: "user" | "assistant";
@@ -207,6 +209,7 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
 
   const failRun = useCallback(
     (error: unknown) => {
+      console.error("[DayFlow][client:run:error]", error);
       setPendingContinuation(null);
       cancelAgentRun();
       setActivities((current) =>
@@ -235,6 +238,13 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
       const state = useDayFlowStore.getState().shared;
       const currentData = dataRef.current;
       const context = buildAgentContext(state, currentData.weather, currentData.visiblePlaces);
+
+      console.log("[DayFlow][client:request]", {
+        goal,
+        continuation: continuation ?? null,
+        baseline: requestBaseline,
+        visiblePlaceCount: currentData.visiblePlaces.length,
+      });
 
       const response = await fetch("/api/dayflow-agent", {
         method: "POST",
@@ -288,6 +298,11 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
           ...nextContinuation,
           baseline: requestBaseline,
         };
+        console.log("[DayFlow][continuation:waiting]", {
+          step: nextContinuation.step,
+          waitFor: nextContinuation.waitFor,
+          baseline: requestBaseline,
+        });
         setPendingContinuation(pending);
         setAgentWaiting(
           nextContinuation.waitFor,
@@ -297,6 +312,7 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
         return;
       }
 
+      console.log("[DayFlow][client:complete]", { goal });
       finishAgentRun();
     },
     [finishAgentRun, handleEvent, setAgentWaiting],
@@ -304,11 +320,26 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
 
   useEffect(() => {
     if (!pendingContinuation || resumeInFlight.current) return;
-    if (!dependenciesReady(pendingContinuation, queryStatus)) return;
+
+    const ready = dependenciesReady(pendingContinuation, queryStatus);
+    console.log("[DayFlow][continuation:check]", {
+      step: pendingContinuation.step,
+      waitFor: pendingContinuation.waitFor,
+      baseline: pendingContinuation.baseline,
+      current: queryStatus,
+      ready,
+    });
+
+    if (!ready) return;
 
     resumeInFlight.current = true;
     setPendingContinuation(null);
     advanceAgentRun(pendingContinuation.step, pendingContinuation.previousRunId);
+
+    console.log("[DayFlow][continuation:resume]", {
+      step: pendingContinuation.step,
+      waitFor: pendingContinuation.waitFor,
+    });
 
     void runAgentRequest(pendingContinuation.goal, {
       goal: pendingContinuation.goal,
@@ -325,8 +356,15 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
     if (!pendingContinuation) return;
 
     const timer = window.setTimeout(() => {
+      console.error("[DayFlow][continuation:timeout]", {
+        step: pendingContinuation.step,
+        waitFor: pendingContinuation.waitFor,
+        baseline: pendingContinuation.baseline,
+        current: queryRef.current,
+        timeoutMs: CONTEXT_REFRESH_TIMEOUT_MS,
+      });
       failRun(new Error("DayFlow could not refresh the required app context in time."));
-    }, 20_000);
+    }, CONTEXT_REFRESH_TIMEOUT_MS);
 
     return () => window.clearTimeout(timer);
   }, [failRun, pendingContinuation]);

@@ -14,6 +14,9 @@ import {
   updateAppStateTool,
 } from "./update-state-tool";
 
+const MODEL_TIMEOUT_MS = 30_000;
+const MODEL_MAX_RETRIES = 2;
+
 function text(content: unknown) {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -44,7 +47,9 @@ function actionResult(action: UpdateAppStateAction, context: DayFlowAgentContext
     case "set_location":
       return `Location set to ${action.locationQuery}`;
     case "set_categories":
-      return action.categories.length ? `Categories set to ${action.categories.join(", ")}` : "Category filters cleared";
+      return action.categories.length
+        ? `Categories set to ${action.categories.join(", ")}`
+        : "Category filters cleared";
     case "set_radius":
       return `Search radius set to ${action.radiusKm} km`;
     case "set_environment":
@@ -54,7 +59,9 @@ function actionResult(action: UpdateAppStateAction, context: DayFlowAgentContext
     case "set_view":
       return `View switched to ${action.view}`;
     case "select_place":
-      return action.placeId ? `Opened ${placeName(context, action.placeId)}` : "Place selection cleared";
+      return action.placeId
+        ? `Opened ${placeName(context, action.placeId)}`
+        : "Place selection cleared";
     case "add_to_plan":
       return `Added ${placeName(context, action.placeId)} to My Plan`;
     case "remove_from_plan":
@@ -107,6 +114,31 @@ function emitAction(
   });
 }
 
+function actionChangesContext(
+  action: UpdateAppStateAction,
+  before: SharedAppState,
+  after: SharedAppState,
+) {
+  switch (action.type) {
+    case "set_location":
+      return before.location.query !== after.location.query;
+    case "set_radius":
+      return before.filters.radiusKm !== after.filters.radiusKm;
+    case "set_categories":
+      return JSON.stringify(before.filters.categories) !== JSON.stringify(after.filters.categories);
+    case "set_environment":
+      return before.filters.environment !== after.filters.environment;
+    case "reset_filters":
+      return (
+        before.filters.radiusKm !== after.filters.radiusKm ||
+        before.filters.environment !== after.filters.environment ||
+        JSON.stringify(before.filters.categories) !== JSON.stringify(after.filters.categories)
+      );
+    default:
+      return false;
+  }
+}
+
 function emitContinuation(
   opts: {
     goal: string;
@@ -117,9 +149,24 @@ function emitContinuation(
   dependencies: Set<AgentDependency>,
 ) {
   if (opts.step >= MAX_AGENT_STEPS) {
-    sendText(opts.send, "I reached the automation step limit before I could complete every requested action.");
+    console.warn("[DayFlow][continue:limit]", {
+      runId: opts.runId,
+      step: opts.step,
+      waitFor: [...dependencies],
+    });
+    sendText(
+      opts.send,
+      "I reached the automation step limit before I could complete every requested action.",
+    );
     return false;
   }
+
+  console.log("[DayFlow][continue]", {
+    runId: opts.runId,
+    fromStep: opts.step,
+    toStep: opts.step + 1,
+    waitFor: [...dependencies],
+  });
 
   opts.send({
     type: EventType.CUSTOM,
@@ -144,7 +191,7 @@ export async function runDayFlowAgent(opts: {
   context: DayFlowAgentContext;
   send: (event: AgentEvent) => void;
 }) {
-  const result = await model.bindTools([updateAppStateTool]).invoke([
+  const messages = [
     new SystemMessage(`You are DayFlow, an AI copilot embedded in an existing city discovery web app.
 
 Complete the user's goal by operating the existing UI with update_app_state. The tool accepts an ordered actions array. Use multiple actions in one tool call when the CURRENT state and context already contain everything needed. Never invent place IDs, ratings, reviews, or facts. Only select or add place IDs present in CONTEXT.visiblePlaces.
@@ -179,29 +226,96 @@ ${JSON.stringify(opts.state)}
 CONTEXT:
 ${JSON.stringify(opts.context)}`),
     new HumanMessage(opts.goal),
-  ]);
+  ];
+
+  const modelStartedAt = Date.now();
+  console.log("[DayFlow][model:start]", {
+    runId: opts.runId,
+    step: opts.step,
+    timeoutMs: MODEL_TIMEOUT_MS,
+    maxRetries: MODEL_MAX_RETRIES,
+    visiblePlaceCount: opts.context.visiblePlaces.length,
+  });
+
+  let result;
+  try {
+    result = await model.bindTools([updateAppStateTool]).invoke(messages, {
+      timeout: MODEL_TIMEOUT_MS,
+      maxRetries: MODEL_MAX_RETRIES,
+    });
+    console.log("[DayFlow][model:finish]", {
+      runId: opts.runId,
+      step: opts.step,
+      durationMs: Date.now() - modelStartedAt,
+      toolCallCount: result.tool_calls?.length ?? 0,
+    });
+  } catch (error) {
+    console.error("[DayFlow][model:error]", {
+      runId: opts.runId,
+      step: opts.step,
+      durationMs: Date.now() - modelStartedAt,
+      error,
+    });
+    throw error;
+  }
 
   const call = result.tool_calls?.find((item) => item.name === "update_app_state");
   if (!call) {
+    console.log("[DayFlow][tool:none]", {
+      runId: opts.runId,
+      step: opts.step,
+    });
     sendText(opts.send, text(result.content) || "I couldn't find an action to perform.");
     return;
   }
 
+  console.log("[DayFlow][tool:raw]", {
+    runId: opts.runId,
+    step: opts.step,
+    args: call.args,
+  });
+
   const input = parseUpdateAppStateInput(call.args);
+  console.log("[DayFlow][tool:normalized]", {
+    runId: opts.runId,
+    step: opts.step,
+    actions: input.actions,
+    continueAfterRefresh: input.continueAfterRefresh ?? false,
+  });
+
   let workingState = opts.state;
   const refreshDependencies = new Set<AgentDependency>();
 
   for (const action of input.actions) {
     if (actionNeedsPlaceContext(action) && refreshDependencies.size > 0) {
+      console.log("[DayFlow][action:deferred]", {
+        runId: opts.runId,
+        step: opts.step,
+        action,
+        waitFor: [...refreshDependencies],
+      });
       emitContinuation(opts, refreshDependencies);
       return;
     }
 
     validateAction(action, workingState, opts.context);
-    emitAction(opts.send, action, workingState, opts.context);
-    workingState = applyActionToState(action, workingState);
 
-    for (const dependency of dependenciesForAction(action)) {
+    const nextState = applyActionToState(action, workingState);
+    const changesContext = actionChangesContext(action, workingState, nextState);
+    const dependencies = changesContext ? dependenciesForAction(action) : [];
+
+    console.log("[DayFlow][action]", {
+      runId: opts.runId,
+      step: opts.step,
+      action,
+      changesContext,
+      dependencies,
+    });
+
+    emitAction(opts.send, action, workingState, opts.context);
+    workingState = nextState;
+
+    for (const dependency of dependencies) {
       refreshDependencies.add(dependency);
     }
   }
@@ -211,5 +325,10 @@ ${JSON.stringify(opts.context)}`),
     return;
   }
 
+  console.log("[DayFlow][run:complete]", {
+    runId: opts.runId,
+    step: opts.step,
+    message: input.message ?? "Done.",
+  });
   sendText(opts.send, input.message ?? "Done.");
 }
