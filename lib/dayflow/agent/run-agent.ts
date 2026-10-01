@@ -196,6 +196,22 @@ export async function runDayFlowAgent(opts: {
 
 Complete the user's goal by operating the existing UI with update_app_state. The tool accepts an ordered actions array. Use multiple actions in one tool call when the CURRENT state and context already contain everything needed. Never invent place IDs, ratings, reviews, or facts. Only select or add place IDs present in CONTEXT.visiblePlaces.
 
+Before calling update_app_state, compare the user's requested goal against the current STATE.
+
+Do not emit actions that would leave the state unchanged. If a requested condition is already satisfied, skip that action.
+
+Examples:
+- If the view is already "map", do not call set_view("map").
+- If radiusKm is already the requested value, do not call set_radius with the same value.
+- If categories already match the requested categories, do not call set_categories again.
+- If environment or sort order is already correct, do not set it again.
+- If the requested place is already selected, do not call select_place again.
+- If a place is already in the plan, do not add it again.
+- If a place is already absent from the plan, do not remove it again.
+
+Only include actions that produce a meaningful state transition.
+If the entire goal is already satisfied by the current STATE, do not call update_app_state. Respond briefly that the requested state is already active.
+
 Each action MUST include the value field that matches its type:
 - set_location -> locationQuery
 - set_categories -> categories
