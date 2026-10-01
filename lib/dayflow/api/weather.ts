@@ -11,7 +11,10 @@ export async function getWeather(latitude: number, longitude: number): Promise<W
   url.searchParams.set("hourly", "temperature_2m,precipitation_probability,weather_code");
   url.searchParams.set("forecast_days", "3");
   url.searchParams.set("timezone", "auto");
-  const response = await fetch(url, { next: { revalidate: 600 } });
+  const response = await fetch(url, {
+    next: { revalidate: 600 },
+    signal: AbortSignal.timeout(10_000),
+  });
   if (!response.ok) throw new Error(`Weather failed: ${response.status}`);
   const data = (await response.json()) as Raw;
   return {
