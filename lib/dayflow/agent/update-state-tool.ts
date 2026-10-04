@@ -1,6 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
-import type { AgentDependency, JsonPatchOperation, SharedAppState } from "../state/types";
+import type { AgentDependency, JsonPatchOperation, SavedPlace, SharedAppState } from "../state/types";
 import { placeCategorySchema, planPaceSchema } from "../state/schema";
 
 const radiusSchema = z.union([z.literal(1), z.literal(2), z.literal(5)]);
@@ -93,7 +93,7 @@ export function parseUpdateAppStateInput(value: unknown): UpdateAppStateInput {
   return { actions: parsed.actions.map(normalizeAction), continueAfterRefresh: parsed.continueAfterRefresh, message: parsed.message };
 }
 
-export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppState): JsonPatchOperation[] {
+export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppState, savedPlace?: SavedPlace): JsonPatchOperation[] {
   switch (action.type) {
     case "set_location": return [{ op: "replace", path: "/location/query", value: action.locationQuery }];
     case "set_categories": return [{ op: "replace", path: "/filters/categories", value: action.categories }];
@@ -103,11 +103,14 @@ export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppS
     case "set_view": return [{ op: "replace", path: "/view/mode", value: action.view }];
     case "select_place": return [{ op: "replace", path: "/selection/placeId", value: action.placeId }];
     case "add_to_plan": {
-      const placeIds = state.plan.placeIds.includes(action.placeId) ? state.plan.placeIds : [...state.plan.placeIds, action.placeId];
-      return [{ op: "replace", path: "/plan/placeIds", value: placeIds }, { op: "replace", path: "/plan/itinerary", value: [] }];
+      if (!savedPlace) throw new Error(`Missing saved place snapshot for ${action.placeId}`);
+      const places = state.plan.places.some((place) => place.id === action.placeId)
+        ? state.plan.places
+        : [...state.plan.places, savedPlace];
+      return [{ op: "replace", path: "/plan/places", value: places }, { op: "replace", path: "/plan/itinerary", value: [] }];
     }
     case "remove_from_plan": return [
-      { op: "replace", path: "/plan/placeIds", value: state.plan.placeIds.filter((id) => id !== action.placeId) },
+      { op: "replace", path: "/plan/places", value: state.plan.places.filter((place) => place.id !== action.placeId) },
       { op: "replace", path: "/plan/itinerary", value: [] },
     ];
     case "set_plan_days": return [{ op: "replace", path: "/plan/planner/days", value: action.days }, { op: "replace", path: "/plan/itinerary", value: [] }];
@@ -125,7 +128,7 @@ export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppS
   }
 }
 
-export function applyActionToState(action: UpdateAppStateAction, state: SharedAppState): SharedAppState {
+export function applyActionToState(action: UpdateAppStateAction, state: SharedAppState, savedPlace?: SavedPlace): SharedAppState {
   const clearItinerary = (next: SharedAppState): SharedAppState => ({ ...next, plan: { ...next.plan, itinerary: [] } });
   switch (action.type) {
     case "set_location": return { ...state, location: { ...state.location, query: action.locationQuery } };
@@ -135,8 +138,12 @@ export function applyActionToState(action: UpdateAppStateAction, state: SharedAp
     case "set_sort": return { ...state, filters: { ...state.filters, sortBy: action.sortBy } };
     case "set_view": return { ...state, view: { mode: action.view } };
     case "select_place": return { ...state, selection: { placeId: action.placeId } };
-    case "add_to_plan": return state.plan.placeIds.includes(action.placeId) ? state : clearItinerary({ ...state, plan: { ...state.plan, placeIds: [...state.plan.placeIds, action.placeId] } });
-    case "remove_from_plan": return clearItinerary({ ...state, plan: { ...state.plan, placeIds: state.plan.placeIds.filter((id) => id !== action.placeId) } });
+    case "add_to_plan": {
+      if (state.plan.places.some((place) => place.id === action.placeId)) return state;
+      if (!savedPlace) throw new Error(`Missing saved place snapshot for ${action.placeId}`);
+      return clearItinerary({ ...state, plan: { ...state.plan, places: [...state.plan.places, savedPlace] } });
+    }
+    case "remove_from_plan": return clearItinerary({ ...state, plan: { ...state.plan, places: state.plan.places.filter((place) => place.id !== action.placeId) } });
     case "set_plan_days": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, days: action.days } } });
     case "set_plan_start_date": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, startDate: action.startDate } } });
     case "set_plan_start_time": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, dailyStartTime: action.time } } });
