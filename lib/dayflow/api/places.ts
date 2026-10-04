@@ -73,7 +73,7 @@ function distanceMeters(latitude: number, longitude: number, placeLatitude: numb
 export async function getPlaces(
   latitude: number,
   longitude: number,
-  radiusKm: 1 | 2 | 5,
+  radiusKm: 1 | 2 | 5 | 10,
 ): Promise<PlaceSummary[]> {
   const apiKey = process.env.GEOAPIFY_API_KEY;
 
@@ -85,7 +85,7 @@ export async function getPlaces(
   url.searchParams.set("categories", GEOAPIFY_CATEGORIES);
   url.searchParams.set("filter", `circle:${longitude},${latitude},${radiusKm * 1000}`);
   url.searchParams.set("bias", `proximity:${longitude},${latitude}`);
-  url.searchParams.set("limit", "120");
+  url.searchParams.set("limit", "300");
   url.searchParams.set("lang", "en");
   url.searchParams.set("apiKey", apiKey);
 
@@ -144,5 +144,5 @@ export async function getPlaces(
       ];
     })
     .sort((a, b) => a.distanceMeters - b.distanceMeters)
-    .slice(0, 120);
+    .slice(0, 300);
 }
