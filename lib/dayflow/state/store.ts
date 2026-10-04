@@ -12,8 +12,10 @@ import type {
   GeoLocation,
   JsonPatchOperation,
   PlaceCategory,
+  PlaceSummary,
   PlanPace,
   RuntimeState,
+  SavedPlace,
   SharedAppState,
   DayPlan,
 } from "./types";
@@ -26,7 +28,7 @@ const AGENT_MUTABLE_PATHS = new Set([
   "/filters/sortBy",
   "/view/mode",
   "/selection/placeId",
-  "/plan/placeIds",
+  "/plan/places",
   "/plan/planner/days",
   "/plan/planner/startDate",
   "/plan/planner/dailyStartTime",
@@ -38,6 +40,18 @@ const AGENT_MUTABLE_PATHS = new Set([
 
 function mutation(source: "human" | "agent", paths: string[]): RuntimeState["lastMutation"] {
   return { source, paths, timestamp: Date.now() };
+}
+
+function toSavedPlace(place: PlaceSummary): SavedPlace {
+  return {
+    id: place.id,
+    name: place.name,
+    category: place.category,
+    latitude: place.latitude,
+    longitude: place.longitude,
+    distanceMeters: place.distanceMeters,
+    environment: place.environment,
+  };
 }
 
 function assertAgentDeltaAllowed(delta: JsonPatchOperation[]) {
@@ -63,7 +77,7 @@ type DayFlowStore = {
   setSort: (sortBy: DayFlowSort) => void;
   setView: (mode: DayFlowViewMode) => void;
   selectPlace: (placeId: string | null) => void;
-  addPlaceToPlan: (placeId: string) => void;
+  addPlaceToPlan: (place: PlaceSummary) => void;
   removePlaceFromPlan: (placeId: string) => void;
   setPlanDays: (days: number) => void;
   setPlanStartDate: (startDate: string | null) => void;
@@ -155,19 +169,20 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
     }));
   },
 
-  addPlaceToPlan(placeId) {
-    const placeIds = get().shared.plan.placeIds;
-    if (placeIds.includes(placeId)) return;
+  addPlaceToPlan(place) {
+    const places = get().shared.plan.places;
+    if (places.some((item) => item.id === place.id)) return;
+    const savedPlace = toSavedPlace(place);
     set((state) => ({
       shared: {
         ...state.shared,
         plan: {
           ...state.shared.plan,
-          placeIds: [...state.shared.plan.placeIds, placeId],
+          places: [...state.shared.plan.places, savedPlace],
           itinerary: [],
         },
       },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/placeIds", "/plan/itinerary"]) },
+      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/places", "/plan/itinerary"]) },
     }));
   },
 
@@ -177,11 +192,11 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
         ...state.shared,
         plan: {
           ...state.shared.plan,
-          placeIds: state.shared.plan.placeIds.filter((id) => id !== placeId),
+          places: state.shared.plan.places.filter((place) => place.id !== placeId),
           itinerary: [],
         },
       },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/placeIds", "/plan/itinerary"]) },
+      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/places", "/plan/itinerary"]) },
     }));
   },
 
