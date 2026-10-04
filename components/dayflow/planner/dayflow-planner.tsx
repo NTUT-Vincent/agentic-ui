@@ -1,12 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePlacesQuery } from "@/hooks/use-places-query";
 import { useWeatherQuery } from "@/hooks/use-weather-query";
 import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
-import type { DayPlan, PlaceSummary } from "@/lib/dayflow/state/types";
+import type { DayPlan, PlaceDetails, PlaceSummary } from "@/lib/dayflow/state/types";
 import { DayFlowChat } from "../dayflow-chat";
 import { DayFlowHeader } from "../dayflow-header";
 import { StateActivity } from "../state-activity";
@@ -19,12 +19,43 @@ export function DayFlowPlanner() {
   const removePlace = useDayFlowStore((store) => store.removePlaceFromPlan);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
 
   const weather = useWeatherQuery(state.location.latitude, state.location.longitude);
   const places = usePlacesQuery(state.location.latitude, state.location.longitude, state.filters.radiusKm);
   const allPlaces = places.data ?? [];
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selectedPlaces: PlaceSummary[] = state.plan.places.map((place) => ({ ...place }));
+  const savedPlaceIds = useMemo(() => state.plan.places.map((place) => place.id), [state.plan.places]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void Promise.all(
+      savedPlaceIds.map(async (id) => {
+        try {
+          const response = await fetch(`/api/dayflow/place-details?id=${encodeURIComponent(id)}`, {
+            signal: controller.signal,
+          });
+          if (!response.ok) return null;
+          const data = (await response.json()) as { place?: PlaceDetails };
+          return data.place ? [id, data.place] as const : null;
+        } catch (cause) {
+          if (cause instanceof DOMException && cause.name === "AbortError") return null;
+          return null;
+        }
+      }),
+    ).then((entries) => {
+      if (controller.signal.aborted) return;
+      const next: Record<string, PlaceDetails> = {};
+      for (const entry of entries) {
+        if (entry) next[entry[0]] = entry[1];
+      }
+      setPlaceDetails(next);
+    });
+
+    return () => controller.abort();
+  }, [savedPlaceIds]);
 
   const queryStatus = useMemo(
     () => ({
@@ -88,21 +119,30 @@ export function DayFlowPlanner() {
                   <span className="dayflow-kicker">CANDIDATES</span>
                   <h2>Places to work with</h2>
                 </div>
-                <small>Details are fetched only when you generate.</small>
               </div>
               {state.plan.places.length === 0 ? (
                 <p className="planner-muted">Add places from Explore before writing a plan.</p>
               ) : (
                 <div className="planner-place-list">
-                  {state.plan.places.map((place) => (
-                    <div className="planner-place-row" key={place.id}>
-                      <div>
-                        <strong>{place.name}</strong>
-                        <span>{place.category} · {Math.round(place.distanceMeters)} m away when saved</span>
+                  {state.plan.places.map((place) => {
+                    const details = placeDetails[place.id];
+                    return (
+                      <div className="planner-place-row" key={place.id}>
+                        <div>
+                          <strong>{place.name}</strong>
+                          <span>{place.category}</span>
+                          {details?.address && <span>{details.address}</span>}
+                          {details?.openingHours && <span>Hours: {details.openingHours}</span>}
+                          {details?.website && (
+                            <a href={details.website} target="_blank" rel="noreferrer">
+                              Website ↗
+                            </a>
+                          )}
+                        </div>
+                        <button onClick={() => removePlace(place.id)}>Remove</button>
                       </div>
-                      <button onClick={() => removePlace(place.id)}>Remove</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
