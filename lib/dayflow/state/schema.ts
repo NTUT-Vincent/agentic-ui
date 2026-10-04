@@ -40,6 +40,16 @@ export const planSettingsSchema = z.object({
   note: z.string().max(1000),
 });
 
+export const savedPlaceSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  category: placeCategorySchema,
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  distanceMeters: z.number().min(0),
+  environment: z.enum(["indoor", "outdoor", "unknown"]),
+});
+
 export const geoLocationSchema = z.object({
   query: z.string().min(1),
   name: z.string().min(1),
@@ -60,7 +70,7 @@ export const sharedAppStateSchema = z.object({
   view: z.object({ mode: z.enum(["split", "map", "list"]) }),
   selection: z.object({ placeId: z.string().nullable() }),
   plan: z.object({
-    placeIds: z.array(z.string()),
+    places: z.array(savedPlaceSchema),
     planner: planSettingsSchema,
     itinerary: z.array(dayPlanSchema),
   }),
