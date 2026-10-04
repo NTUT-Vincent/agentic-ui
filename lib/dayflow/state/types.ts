@@ -19,6 +19,30 @@ export type DayFlowViewMode = "split" | "map" | "list";
 export type DayFlowSort = "distance" | "name";
 export type MutationSource = "human" | "agent";
 export type AgentDependency = "location" | "places" | "weather";
+export type PlanPace = "relaxed" | "balanced" | "packed";
+
+export type PlanItem = {
+  id: string;
+  placeId: string;
+  startTime: string;
+  endTime: string;
+  note?: string;
+};
+
+export type DayPlan = {
+  day: number;
+  date?: string;
+  items: PlanItem[];
+};
+
+export type PlanSettings = {
+  days: number;
+  startDate: string | null;
+  dailyStartTime: string;
+  dailyEndTime: string;
+  pace: PlanPace;
+  note: string;
+};
 
 export type AgentRunState = {
   goal: string | null;
@@ -53,6 +77,8 @@ export type SharedAppState = {
   };
   plan: {
     placeIds: string[];
+    planner: PlanSettings;
+    itinerary: DayPlan[];
   };
 };
 
@@ -96,6 +122,14 @@ export type PlaceSummary = {
   environment: PlaceEnvironment;
   openingHours?: string;
   website?: string;
+};
+
+export type PlaceDetails = {
+  id: string;
+  name?: string;
+  openingHours?: string;
+  website?: string;
+  address?: string;
 };
 
 export type GeocodeResult = {
