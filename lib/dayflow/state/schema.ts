@@ -12,6 +12,34 @@ export const placeCategorySchema = z.enum([
   "museum",
 ]);
 
+export const planPaceSchema = z.enum(["relaxed", "balanced", "packed"]);
+
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+export const planItemSchema = z.object({
+  id: z.string().min(1),
+  placeId: z.string().min(1),
+  startTime: timeSchema,
+  endTime: timeSchema,
+  note: z.string().optional(),
+});
+
+export const dayPlanSchema = z.object({
+  day: z.number().int().min(1),
+  date: dateSchema.optional(),
+  items: z.array(planItemSchema),
+});
+
+export const planSettingsSchema = z.object({
+  days: z.number().int().min(1).max(14),
+  startDate: dateSchema.nullable(),
+  dailyStartTime: timeSchema,
+  dailyEndTime: timeSchema,
+  pace: planPaceSchema,
+  note: z.string().max(1000),
+});
+
 export const geoLocationSchema = z.object({
   query: z.string().min(1),
   name: z.string().min(1),
@@ -31,5 +59,9 @@ export const sharedAppStateSchema = z.object({
   }),
   view: z.object({ mode: z.enum(["split", "map", "list"]) }),
   selection: z.object({ placeId: z.string().nullable() }),
-  plan: z.object({ placeIds: z.array(z.string()) }),
+  plan: z.object({
+    placeIds: z.array(z.string()),
+    planner: planSettingsSchema,
+    itinerary: z.array(dayPlanSchema),
+  }),
 });
