@@ -25,7 +25,16 @@ export function PlanForm() {
       <div className="planner-grid">
         <label>
           <span>Days</span>
-          <input type="number" min={1} max={14} value={planner.days} onChange={(event) => setDays(Number(event.target.value))} />
+          <input
+            type="number"
+            min={1}
+            max={14}
+            value={planner.days}
+            onChange={(event) => {
+              const days = Number(event.target.value);
+              if (Number.isInteger(days) && days >= 1 && days <= 14) setDays(days);
+            }}
+          />
         </label>
         <label>
           <span>Start date</span>
