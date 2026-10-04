@@ -18,7 +18,18 @@ export const initialSharedAppState: SharedAppState = {
   },
   view: { mode: "split" },
   selection: { placeId: null },
-  plan: { placeIds: [] },
+  plan: {
+    placeIds: [],
+    planner: {
+      days: 1,
+      startDate: null,
+      dailyStartTime: "09:00",
+      dailyEndTime: "20:00",
+      pace: "balanced",
+      note: "",
+    },
+    itinerary: [],
+  },
 };
 
 export const initialRuntimeState: RuntimeState = {
