@@ -111,7 +111,7 @@ export function DayFlowApp() {
           )}
         </section>
 
-        <DayFlowPlan places={allPlaces} />
+        <DayFlowPlan />
       </main>
 
       <DayFlowPlaceDetail place={selected} />
