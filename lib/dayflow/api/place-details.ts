@@ -37,7 +37,7 @@ export async function getPlaceDetails(placeId: string): Promise<PlaceDetails> {
   const properties = data.features?.find((feature) => feature.properties)?.properties;
 
   return {
-    id: properties?.place_id ?? placeId,
+    id: placeId,
     name: properties?.name,
     openingHours: properties?.opening_hours,
     website: properties?.website,
