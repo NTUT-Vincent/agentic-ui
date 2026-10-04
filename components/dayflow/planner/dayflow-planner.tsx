@@ -24,9 +24,7 @@ export function DayFlowPlanner() {
   const places = usePlacesQuery(state.location.latitude, state.location.longitude, state.filters.radiusKm);
   const allPlaces = places.data ?? [];
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
-  const selectedPlaces = state.plan.placeIds
-    .map((id) => allPlaces.find((place) => place.id === id))
-    .filter((place): place is PlaceSummary => Boolean(place));
+  const selectedPlaces: PlaceSummary[] = state.plan.places.map((place) => ({ ...place }));
 
   const queryStatus = useMemo(
     () => ({
@@ -73,9 +71,9 @@ export function DayFlowPlanner() {
             <Link href="/" className="planner-back">← Back to explore</Link>
             <span className="dayflow-kicker">DAYFLOW PLANNER</span>
             <h1>Turn saved places into a real itinerary.</h1>
-            <p>{state.location.name}, {state.location.country} · {state.plan.placeIds.length} saved places</p>
+            <p>{state.location.name}, {state.location.country} · {state.plan.places.length} saved places</p>
           </div>
-          <button className="dayflow-primary planner-generate" disabled={generating || state.plan.placeIds.length === 0} onClick={generate}>
+          <button className="dayflow-primary planner-generate" disabled={generating || state.plan.places.length === 0} onClick={generate}>
             {generating ? "Planning…" : state.plan.itinerary.length ? "Regenerate itinerary" : "Generate itinerary"}
           </button>
         </header>
@@ -92,29 +90,26 @@ export function DayFlowPlanner() {
                 </div>
                 <small>Details are fetched only when you generate.</small>
               </div>
-              {state.plan.placeIds.length === 0 ? (
+              {state.plan.places.length === 0 ? (
                 <p className="planner-muted">Add places from Explore before writing a plan.</p>
               ) : (
                 <div className="planner-place-list">
-                  {state.plan.placeIds.map((id) => {
-                    const place = allPlaces.find((candidate) => candidate.id === id);
-                    return (
-                      <div className="planner-place-row" key={id}>
-                        <div>
-                          <strong>{place?.name ?? "Saved place"}</strong>
-                          {place && <span>{place.category} · {Math.round(place.distanceMeters)} m away</span>}
-                        </div>
-                        <button onClick={() => removePlace(id)}>Remove</button>
+                  {state.plan.places.map((place) => (
+                    <div className="planner-place-row" key={place.id}>
+                      <div>
+                        <strong>{place.name}</strong>
+                        <span>{place.category} · {Math.round(place.distanceMeters)} m away when saved</span>
                       </div>
-                    );
-                  })}
+                      <button onClick={() => removePlace(place.id)}>Remove</button>
+                    </div>
+                  ))}
                 </div>
               )}
             </section>
             {error && <div className="planner-error">{error}</div>}
           </div>
 
-          <PlanResult places={selectedPlaces.length ? selectedPlaces : allPlaces} />
+          <PlanResult places={selectedPlaces} />
         </div>
       </main>
 
