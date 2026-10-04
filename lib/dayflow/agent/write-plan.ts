@@ -25,10 +25,15 @@ function minutes(value: string) {
 }
 
 export async function writePlan(state: SharedAppState, weather: WeatherSummary | null): Promise<DayPlan[]> {
-  if (state.plan.placeIds.length === 0) throw new Error("Add at least one place before generating an itinerary.");
+  if (state.plan.places.length === 0) throw new Error("Add at least one place before generating an itinerary.");
 
-  const details = await Promise.all(state.plan.placeIds.map((id) => getPlaceDetails(id)));
-  const allowedIds = new Set(state.plan.placeIds);
+  const placeIds = state.plan.places.map((place) => place.id);
+  const details = await Promise.all(placeIds.map((id) => getPlaceDetails(id)));
+  const candidatePlaces = state.plan.places.map((place) => ({
+    ...place,
+    details: details.find((detail) => detail.id === place.id) ?? null,
+  }));
+  const allowedIds = new Set(placeIds);
   const planner = state.plan.planner;
 
   const structuredModel = model.withStructuredOutput(resultSchema);
@@ -55,8 +60,8 @@ ${JSON.stringify(state.location)}
 Weather:
 ${JSON.stringify(weather)}
 
-Candidate place details:
-${JSON.stringify(details)}`),
+Candidate places:
+${JSON.stringify(candidatePlaces)}`),
     new HumanMessage("Create the itinerary now."),
   ]);
 
