@@ -103,7 +103,6 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
         ...state.shared,
         location: validated,
         selection: { placeId: null },
-        plan: structuredClone(initialSharedAppState.plan),
       },
       runtime: state.runtime,
     }));
