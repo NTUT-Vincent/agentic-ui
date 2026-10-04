@@ -15,11 +15,7 @@ export function PlanForm() {
   return (
     <section className="planner-card planner-form">
       <div className="planner-card-heading">
-        <div>
-          <span className="dayflow-kicker">TRIP SETTINGS</span>
-          <h2>Shape the day before AI plans it</h2>
-        </div>
-        <small>Every field is shared with the AI copilot.</small>
+        <span className="dayflow-kicker">TRIP SETTINGS</span>
       </div>
 
       <div className="planner-grid">
