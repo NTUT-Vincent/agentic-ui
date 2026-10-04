@@ -2,7 +2,7 @@ import { EventType } from "@ag-ui/core";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { model } from "@/lib/agent/model";
 import type { AgentEvent } from "@/lib/agui/events";
-import { MAX_AGENT_STEPS, type AgentDependency, type SharedAppState } from "../state/types";
+import { MAX_AGENT_STEPS, type AgentDependency, type SavedPlace, type SharedAppState } from "../state/types";
 import type { DayFlowAgentContext } from "./context";
 import {
   actionNeedsPlaceContext,
@@ -34,6 +34,13 @@ function placeName(context: DayFlowAgentContext, placeId: string) {
   return context.visiblePlaces.find((place) => place.id === placeId)?.name ?? "place";
 }
 
+function savedPlaceForAction(action: UpdateAppStateAction, context: DayFlowAgentContext): SavedPlace | undefined {
+  if (action.type !== "add_to_plan") return undefined;
+  const place = context.visiblePlaces.find((candidate) => candidate.id === action.placeId);
+  if (!place) return undefined;
+  return { ...place };
+}
+
 function actionResult(action: UpdateAppStateAction, context: DayFlowAgentContext): string {
   switch (action.type) {
     case "set_location": return `Location set to ${action.locationQuery}`;
@@ -59,13 +66,13 @@ function validateAction(action: UpdateAppStateAction, state: SharedAppState, con
   const visibleIds = new Set(context.visiblePlaces.map((place) => place.id));
   if (action.type === "select_place" && action.placeId && !visibleIds.has(action.placeId)) throw new Error(`Agent attempted to select unknown place id: ${action.placeId}`);
   if (action.type === "add_to_plan" && !visibleIds.has(action.placeId)) throw new Error(`Agent attempted to add unknown place id: ${action.placeId}`);
-  if (action.type === "remove_from_plan" && !state.plan.placeIds.includes(action.placeId)) throw new Error(`Agent attempted to remove unknown plan item: ${action.placeId}`);
+  if (action.type === "remove_from_plan" && !state.plan.places.some((place) => place.id === action.placeId)) throw new Error(`Agent attempted to remove unknown plan item: ${action.placeId}`);
 }
 
-function emitAction(send: (event: AgentEvent) => void, action: UpdateAppStateAction, state: SharedAppState, context: DayFlowAgentContext) {
+function emitAction(send: (event: AgentEvent) => void, action: UpdateAppStateAction, state: SharedAppState, context: DayFlowAgentContext, savedPlace?: SavedPlace) {
   const toolCallId = crypto.randomUUID();
   const messageId = crypto.randomUUID();
-  const delta = buildActionDelta(action, state);
+  const delta = buildActionDelta(action, state, savedPlace);
   send({ type: EventType.TOOL_CALL_START, toolCallId, toolCallName: "update_app_state" });
   send({ type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(action) });
   send({ type: EventType.TOOL_CALL_END, toolCallId });
@@ -172,9 +179,10 @@ ${JSON.stringify(opts.context)}`),
     }
 
     validateAction(action, workingState, opts.context);
-    const nextState = applyActionToState(action, workingState);
+    const savedPlace = savedPlaceForAction(action, opts.context);
+    const nextState = applyActionToState(action, workingState, savedPlace);
     const dependencies = actionChangesContext(action, workingState, nextState) ? dependenciesForAction(action) : [];
-    emitAction(opts.send, action, workingState, opts.context);
+    emitAction(opts.send, action, workingState, opts.context, savedPlace);
     workingState = nextState;
     dependencies.forEach((dependency) => refreshDependencies.add(dependency));
   }
