@@ -6,7 +6,7 @@ import { usePlacesQuery } from "@/hooks/use-places-query";
 import { useWeatherQuery } from "@/hooks/use-weather-query";
 import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
-import type { DayPlan } from "@/lib/dayflow/state/types";
+import type { DayPlan, PlaceSummary } from "@/lib/dayflow/state/types";
 import { DayFlowChat } from "../dayflow-chat";
 import { StateActivity } from "../state-activity";
 import { PlanForm } from "./plan-form";
@@ -25,7 +25,7 @@ export function DayFlowPlanner() {
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selectedPlaces = state.plan.placeIds
     .map((id) => allPlaces.find((place) => place.id === id))
-    .filter((place): place is NonNullable<typeof place> => Boolean(place));
+    .filter((place): place is PlaceSummary => Boolean(place));
 
   const queryStatus = useMemo(
     () => ({
