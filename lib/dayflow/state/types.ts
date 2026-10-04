@@ -44,6 +44,16 @@ export type PlanSettings = {
   note: string;
 };
 
+export type SavedPlace = {
+  id: string;
+  name: string;
+  category: PlaceCategory;
+  latitude: number;
+  longitude: number;
+  distanceMeters: number;
+  environment: PlaceEnvironment;
+};
+
 export type AgentRunState = {
   goal: string | null;
   step: number;
@@ -76,7 +86,7 @@ export type SharedAppState = {
     placeId: string | null;
   };
   plan: {
-    placeIds: string[];
+    places: SavedPlace[];
     planner: PlanSettings;
     itinerary: DayPlan[];
   };
