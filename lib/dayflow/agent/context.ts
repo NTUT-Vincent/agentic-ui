@@ -1,7 +1,7 @@
 import type { PlaceSummary, SharedAppState, WeatherSummary } from "../state/types";
 export type DayFlowAgentContext = {
   weather: { temperatureC: number; apparentTemperatureC: number; rainNextHours: number[] } | null;
-  visiblePlaces: Array<Pick<PlaceSummary, "id" | "name" | "category" | "distanceMeters" | "environment">>;
+  visiblePlaces: Array<Pick<PlaceSummary, "id" | "name" | "category" | "latitude" | "longitude" | "distanceMeters" | "environment">>;
 };
 export function buildAgentContext(_state: SharedAppState, weather: WeatherSummary | null, places: PlaceSummary[]): DayFlowAgentContext {
   return {
@@ -10,6 +10,14 @@ export function buildAgentContext(_state: SharedAppState, weather: WeatherSummar
       apparentTemperatureC: weather.apparentTemperatureC,
       rainNextHours: weather.hourly.slice(0, 6).map((hour) => hour.precipitationProbability),
     } : null,
-    visiblePlaces: places.slice(0, 60).map(({ id, name, category, distanceMeters, environment }) => ({ id, name, category, distanceMeters, environment })),
+    visiblePlaces: places.slice(0, 60).map(({ id, name, category, latitude, longitude, distanceMeters, environment }) => ({
+      id,
+      name,
+      category,
+      latitude,
+      longitude,
+      distanceMeters,
+      environment,
+    })),
   };
 }
