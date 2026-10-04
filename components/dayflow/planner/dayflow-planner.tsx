@@ -8,6 +8,7 @@ import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 import type { DayPlan, PlaceSummary } from "@/lib/dayflow/state/types";
 import { DayFlowChat } from "../dayflow-chat";
+import { DayFlowHeader } from "../dayflow-header";
 import { StateActivity } from "../state-activity";
 import { PlanForm } from "./plan-form";
 import { PlanResult } from "./plan-result";
@@ -65,6 +66,7 @@ export function DayFlowPlanner() {
 
   return (
     <div className="dayflow-app planner-app">
+      <DayFlowHeader />
       <main className="planner-shell">
         <header className="planner-header">
           <div>
