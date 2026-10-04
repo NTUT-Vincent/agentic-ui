@@ -19,7 +19,7 @@ export const initialSharedAppState: SharedAppState = {
   view: { mode: "split" },
   selection: { placeId: null },
   plan: {
-    placeIds: [],
+    places: [],
     planner: {
       days: 1,
       startDate: null,
