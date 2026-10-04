@@ -11,13 +11,17 @@ export function DayFlowPlan() {
 
   return (
     <section className="dayflow-plan">
-      <strong>My plan</strong>
-      {places.map((place) => (
-        <button key={place.id} onClick={() => remove(place.id)} title="Remove from plan">
-          {place.name} ×
-        </button>
-      ))}
-      <Link href="/plan" className="dayflow-plan-write">Write plan →</Link>
+      <div className="dayflow-plan-header">
+        <strong>My plan</strong>
+        <Link href="/plan" className="dayflow-plan-write">Write plan →</Link>
+      </div>
+      <div className="dayflow-plan-items">
+        {places.map((place) => (
+          <button key={place.id} onClick={() => remove(place.id)} title="Remove from plan">
+            {place.name} ×
+          </button>
+        ))}
+      </div>
     </section>
   );
 }
