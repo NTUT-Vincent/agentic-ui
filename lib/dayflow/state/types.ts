@@ -75,7 +75,7 @@ export type SharedAppState = {
   location: GeoLocation;
   filters: {
     categories: PlaceCategory[];
-    radiusKm: 1 | 2 | 5;
+    radiusKm: 1 | 2 | 5 | 10;
     environment: EnvironmentFilter;
     sortBy: DayFlowSort;
   };
