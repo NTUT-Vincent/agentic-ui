@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { AgentDependency, JsonPatchOperation, SavedPlace, SharedAppState } from "../state/types";
 import { placeCategorySchema, planPaceSchema } from "../state/schema";
 
-const radiusSchema = z.union([z.literal(1), z.literal(2), z.literal(5)]);
+const radiusSchema = z.union([z.literal(1), z.literal(2), z.literal(5), z.literal(10)]);
 const environmentSchema = z.enum(["all", "indoor", "outdoor"]);
 const sortSchema = z.enum(["distance", "name"]);
 const viewSchema = z.enum(["split", "map", "list"]);
