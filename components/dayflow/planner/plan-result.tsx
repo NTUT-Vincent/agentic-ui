@@ -11,11 +11,6 @@ export function PlanResult({ places }: { places: PlaceSummary[] }) {
 
   return (
     <section className="planner-result">
-      <div className="planner-result-heading">
-        <span className="dayflow-kicker">YOUR ITINERARY</span>
-        <h2>AI-planned, state-driven</h2>
-      </div>
-
       {itinerary.map((day) => (
         <article key={day.day} className="planner-day">
           <header>
