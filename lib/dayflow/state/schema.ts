@@ -63,7 +63,7 @@ export const sharedAppStateSchema = z.object({
   location: geoLocationSchema,
   filters: z.object({
     categories: z.array(placeCategorySchema),
-    radiusKm: z.union([z.literal(1), z.literal(2), z.literal(5)]),
+    radiusKm: z.union([z.literal(1), z.literal(2), z.literal(5), z.literal(10)]),
     environment: z.enum(["all", "indoor", "outdoor"]),
     sortBy: z.enum(["distance", "name"]),
   }),
