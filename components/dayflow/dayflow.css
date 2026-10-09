@@ -70,3 +70,111 @@
   }
   .dayflow-user-info { display: none; }
 }
+
+/* Saved trips navigation, planner save action, and My Trips list */
+.dayflow-trips-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 12px;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  color: #222;
+  background: #fff;
+  text-decoration: none;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.dayflow-trips-link:hover { background: #f5f6f7; }
+.planner-header-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.planner-action-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.planner-save {
+  border: 1px solid #ccc;
+  background: #fff;
+  color: #171717;
+  padding: 9px 14px;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.planner-save:disabled,
+.planner-generate:disabled { opacity: .55; cursor: not-allowed; }
+.planner-save-message {
+  color: #237044;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.planner-save-message a { color: inherit; }
+.planner-save-message.error { color: #a32020; }
+.my-trips-shell {
+  width: min(1100px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 40px 0 120px;
+}
+.my-trips-header {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 32px;
+}
+.my-trips-header h1 {
+  font-size: 42px;
+  letter-spacing: -.04em;
+  margin: 4px 0;
+}
+.my-trips-header p { color: #777; margin: 0; }
+.my-trips-count { color: #666; font-size: 13px; }
+.my-trips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 18px;
+}
+.my-trips-card,
+.my-trips-empty {
+  border: 1px solid #e2e2e2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 12px 35px rgb(0 0 0 / 4%);
+}
+.my-trips-card { padding: 24px; }
+.my-trips-card h2 { font-size: 20px; margin: 12px 0; }
+.my-trips-card p { margin: 0 0 20px; color: #555; font-size: 14px; }
+.my-trips-card time { font-size: 12px; color: #888; }
+.my-trips-empty {
+  padding: 60px 24px;
+  text-align: center;
+  color: #777;
+}
+.my-trips-empty h2 { color: #171717; margin: 0 0 8px; }
+.my-trips-empty p { margin: 0 0 20px; }
+.my-trips-link { display: inline-block; text-decoration: none; }
+@media (max-width: 1100px) {
+  .dayflow-header > .dayflow-header-actions { gap: 10px; }
+  .dayflow-location input { width: 140px; }
+}
+@media (max-width: 700px) {
+  .dayflow-header > .dayflow-header-actions {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+  .dayflow-location { flex: 1 1 100%; }
+  .dayflow-location input { width: 100%; }
+  .planner-header-actions { align-items: stretch; width: 100%; }
+  .planner-action-buttons { justify-content: flex-start; }
+  .my-trips-shell { width: calc(100% - 24px); padding-top: 24px; }
+  .my-trips-header h1 { font-size: 32px; }
+}
