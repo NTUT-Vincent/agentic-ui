@@ -4,8 +4,11 @@ import {
   timestamp,
   integer,
   primaryKey,
+  jsonb,
+  index,
 } from "drizzle-orm/pg-core";
 import type { AdapterAccountType } from "next-auth/adapters";
+import type { SharedAppState } from "@/lib/dayflow/state/types";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey()
@@ -44,5 +47,37 @@ export const accounts = pgTable(
     primaryKey({
       columns: [table.provider, table.providerAccountId],
     }),
+  ],
+);
+
+export const trips = pgTable(
+  "trips",
+  {
+    id: text("id").primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, {
+        onDelete: "cascade",
+      }),
+    title: text("title").notNull(),
+    location: jsonb("location")
+      .$type<SharedAppState["location"]>()
+      .notNull(),
+    plan: jsonb("plan")
+      .$type<SharedAppState["plan"]>()
+      .notNull(),
+    createdAt: timestamp("created_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", {
+      withTimezone: true,
+      mode: "date",
+    }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("trips_user_created_idx")
+      .on(table.userId, table.createdAt),
   ],
 );
