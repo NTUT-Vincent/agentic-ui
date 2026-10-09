@@ -93,7 +93,11 @@ export function MyTrips() {
             <p className="my-trips-count">{trips.length} saved {trips.length === 1 ? "trip" : "trips"}</p>
             <div className="my-trips-grid">
               {trips.map((trip) => (
-                <article className="my-trips-card" key={trip.id}>
+                <Link
+                  href={`/my-trips/${encodeURIComponent(trip.id)}`}
+                  className="my-trips-card my-trips-card-link"
+                  key={trip.id}
+                >
                   <span className="dayflow-kicker">{trip.city}, {trip.country}</span>
                   <h2>{trip.title}</h2>
                   <p>{trip.days} {trip.days === 1 ? "day" : "days"} · {trip.placeCount} {trip.placeCount === 1 ? "place" : "places"}</p>
@@ -104,7 +108,10 @@ export function MyTrips() {
                       day: "numeric",
                     })}
                   </time>
-                </article>
+                  <span className="my-trips-card-action">
+                    View itinerary →
+                  </span>
+                </Link>
               ))}
             </div>
           </>
