@@ -19,6 +19,9 @@ export function DayFlowPlanner() {
   const removePlace = useDayFlowStore((store) => store.removePlaceFromPlan);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
 
   const weather = useWeatherQuery(state.location.latitude, state.location.longitude);
@@ -27,6 +30,11 @@ export function DayFlowPlanner() {
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selectedPlaces: PlaceSummary[] = state.plan.places.map((place) => ({ ...place }));
   const savedPlaceIds = useMemo(() => state.plan.places.map((place) => place.id), [state.plan.places]);
+  const tripFingerprint = useMemo(
+    () => JSON.stringify({ location: state.location, plan: state.plan }),
+    [state.location, state.plan],
+  );
+  const isSaved = savedFingerprint === tripFingerprint;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -93,6 +101,33 @@ export function DayFlowPlanner() {
     }
   }
 
+  async function saveTrip() {
+    if (saving || generating || isSaved || state.plan.itinerary.length === 0) return;
+    setSaving(true);
+    setSaveError(null);
+    const snapshot = tripFingerprint;
+
+    try {
+      const response = await fetch("/api/dayflow/trips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: snapshot,
+      });
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error("Sign in with Google to save your trip.");
+        }
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error ?? "Failed to save trip.");
+      }
+      setSavedFingerprint(snapshot);
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : "Failed to save trip.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="dayflow-app planner-app">
       <DayFlowHeader />
@@ -104,9 +139,27 @@ export function DayFlowPlanner() {
             <h1>Turn saved places into a real itinerary.</h1>
             <p>{state.location.name}, {state.location.country} · {state.plan.places.length} saved places</p>
           </div>
-          <button className="dayflow-primary planner-generate" disabled={generating || state.plan.places.length === 0} onClick={generate}>
-            {generating ? "Planning…" : state.plan.itinerary.length ? "Regenerate itinerary" : "Generate itinerary"}
-          </button>
+          <div className="planner-header-actions">
+            <div className="planner-action-buttons">
+              <button className="dayflow-primary planner-generate" disabled={generating || state.plan.places.length === 0} onClick={generate}>
+                {generating ? "Planning…" : state.plan.itinerary.length ? "Regenerate itinerary" : "Generate itinerary"}
+              </button>
+              <button
+                type="button"
+                className="planner-save"
+                disabled={generating || saving || isSaved || state.plan.itinerary.length === 0}
+                onClick={() => void saveTrip()}
+              >
+                {saving ? "Saving…" : isSaved ? "Saved ✓" : "Save trip"}
+              </button>
+            </div>
+            {saveError && <p className="planner-save-message error" role="alert">{saveError}</p>}
+            {isSaved && !saveError && (
+              <p className="planner-save-message" role="status">
+                Saved successfully · <Link href="/my-trips">View My Trips →</Link>
+              </p>
+            )}
+          </div>
         </header>
 
         <div className="planner-layout">
