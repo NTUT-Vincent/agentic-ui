@@ -1,5 +1,7 @@
 import { DayFlowPlanner } from "@/components/dayflow/planner/dayflow-planner";
-
-export default function PlanPage() {
-  return <DayFlowPlanner />;
+export default async function PlanPage({ searchParams }: {
+  searchParams: Promise<{ planId?: string }>;
+}) {
+  const { planId } = await searchParams;
+  return <DayFlowPlanner initialPlanId={planId} />;
 }
