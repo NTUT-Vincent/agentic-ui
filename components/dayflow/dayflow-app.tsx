@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { usePlacesQuery } from "@/hooks/use-places-query";
+import { useActivePlan } from "@/hooks/use-active-plan";
 import { useWeatherQuery } from "@/hooks/use-weather-query";
 import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
@@ -11,6 +12,7 @@ import { DayFlowFilters } from "./dayflow-filters";
 import { DayFlowPlaceList } from "./dayflow-place-list";
 import { DayFlowPlaceDetail } from "./dayflow-place-detail";
 import { DayFlowPlan } from "./dayflow-plan";
+import { ActivePlanPicker } from "./active-plan-picker";
 import { DayFlowChat } from "./dayflow-chat";
 import { StateActivity } from "./state-activity";
 
@@ -28,7 +30,8 @@ function weatherLabel(code: number) {
   return "Storm";
 }
 
-export function DayFlowApp() {
+export function DayFlowApp({ initialPlanId }: { initialPlanId?: string }) {
+  const plans = useActivePlan(initialPlanId);
   const state = useDayFlowStore((store) => store.shared);
   const select = useDayFlowStore((store) => store.selectPlace);
   const weather = useWeatherQuery(state.location.latitude, state.location.longitude);
@@ -92,6 +95,18 @@ export function DayFlowApp() {
           )}
         </section>
 
+        <ActivePlanPicker
+          plans={plans.plans}
+          selectedId={plans.active.id}
+          dirty={plans.active.dirty}
+          busy={plans.busy}
+          loading={plans.loading}
+          unauthorized={plans.unauthorized}
+          error={plans.error}
+          onSelect={plans.load}
+          onCreate={plans.create}
+          onSave={plans.saveChanges}
+        />
         <DayFlowFilters />
 
         <section className={`dayflow-content view-${state.view.mode}`}>
@@ -111,10 +126,21 @@ export function DayFlowApp() {
           )}
         </section>
 
-        <DayFlowPlan />
+        <DayFlowPlan
+          activePlanId={plans.active.id}
+          busy={plans.busy || plans.loading}
+          dirty={plans.active.dirty}
+          onRemove={plans.removePlace}
+        />
       </main>
 
-      <DayFlowPlaceDetail place={selected} />
+      <DayFlowPlaceDetail
+        place={selected}
+        busy={plans.busy || plans.loading}
+        hasActivePlan={Boolean(plans.active.id)}
+        dirty={plans.active.dirty}
+        onAdd={plans.addPlace}
+      />
       <StateActivity />
       <DayFlowChat
         weather={weather.data ?? null}
