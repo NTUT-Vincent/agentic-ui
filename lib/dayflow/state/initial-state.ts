@@ -33,6 +33,14 @@ export const initialSharedAppState: SharedAppState = {
 };
 
 export const initialRuntimeState: RuntimeState = {
+  activePlan: {
+    id: null,
+    title: null,
+    dirty: false,
+    needsReplan: false,
+    itineraryEdited: false,
+    baseline: null,
+  },
   chatOpen: false,
   agentStatus: "idle",
   agentRun: {
