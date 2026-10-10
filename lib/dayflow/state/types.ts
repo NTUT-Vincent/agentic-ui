@@ -92,7 +92,34 @@ export type SharedAppState = {
   };
 };
 
+export type ActivePlanBaseline = {
+  title: string;
+  places: SavedPlace[];
+  planner: PlanSettings;
+  itinerary: DayPlan[];
+};
+
+export type ActivePlanRuntime = {
+  id: string | null;
+  title: string | null;
+  dirty: boolean;
+  needsReplan: boolean;
+  itineraryEdited: boolean;
+  baseline: ActivePlanBaseline | null;
+};
+
+export type LoadedPlan = {
+  id: string;
+  title: string;
+  location: GeoLocation;
+  planner: PlanSettings;
+  places: SavedPlace[];
+  itinerary: DayPlan[];
+  needsReplan: boolean;
+};
+
 export type RuntimeState = {
+  activePlan: ActivePlanRuntime;
   chatOpen: boolean;
   agentStatus: "idle" | "running" | "error";
   agentRun: AgentRunState;
