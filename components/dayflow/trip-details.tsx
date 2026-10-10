@@ -36,7 +36,7 @@ function CandidatePlace({ place }: { place: SavedPlace }) {
     }
     void fetchDetails();
     return () => controller.abort();
-  }, [expanded, status, place.id]);
+  }, [expanded, place.id]);
 
   return (
     <div className="trip-details-candidate">
