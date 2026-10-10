@@ -18,6 +18,8 @@ import type {
   SavedPlace,
   SharedAppState,
   DayPlan,
+  ActivePlanBaseline,
+  LoadedPlan,
 } from "./types";
 
 const AGENT_MUTABLE_PATHS = new Set([
@@ -37,6 +39,38 @@ const AGENT_MUTABLE_PATHS = new Set([
   "/plan/planner/note",
   "/plan/itinerary",
 ]);
+
+function same(a: unknown, b: unknown) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function baselineOf(plan: LoadedPlan): ActivePlanBaseline {
+  return {
+    title: plan.title,
+    places: plan.places,
+    planner: plan.planner,
+    itinerary: plan.itinerary,
+  };
+}
+
+function planEdited(shared: SharedAppState, runtime: RuntimeState): RuntimeState {
+  const active = runtime.activePlan;
+  if (!active.id || !active.baseline) return runtime;
+  const dirty = active.title !== active.baseline.title ||
+    !same(shared.plan, {
+      places: active.baseline.places,
+      planner: active.baseline.planner,
+      itinerary: active.baseline.itinerary,
+    });
+  return { ...runtime, activePlan: { ...active, dirty } };
+}
+
+function preserveScheduleWithoutPlace(itinerary: DayPlan[], id: string): DayPlan[] {
+  return itinerary.map((day) => ({
+    ...day,
+    items: day.items.filter((item) => item.placeId !== id),
+  }));
+}
 
 function mutation(source: "human" | "agent", paths: string[]): RuntimeState["lastMutation"] {
   return { source, paths, timestamp: Date.now() };
@@ -68,6 +102,9 @@ function assertAgentDeltaAllowed(delta: JsonPatchOperation[]) {
 type DayFlowStore = {
   shared: SharedAppState;
   runtime: RuntimeState;
+  loadActivePlan: (plan: LoadedPlan) => void;
+  acknowledgeSavedPlan: (plan: LoadedPlan) => void;
+  setActivePlanTitle: (title: string) => void;
   setLocationQuery: (query: string) => void;
   setResolvedLocation: (location: GeoLocation) => void;
   setCategories: (categories: PlaceCategory[]) => void;
@@ -100,6 +137,66 @@ type DayFlowStore = {
 export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
   shared: initialSharedAppState,
   runtime: initialRuntimeState,
+
+  loadActivePlan(plan) {
+    set((state) => ({
+      shared: {
+        ...state.shared,
+        location: plan.location,
+        selection: { placeId: null },
+        plan: {
+          places: plan.places,
+          planner: plan.planner,
+          itinerary: plan.itinerary,
+        },
+      },
+      runtime: {
+        ...state.runtime,
+        activePlan: {
+          id: plan.id,
+          title: plan.title,
+          dirty: false,
+          needsReplan: plan.needsReplan,
+          itineraryEdited: false,
+          baseline: baselineOf(plan),
+        },
+      },
+    }));
+  },
+
+  acknowledgeSavedPlan(plan) {
+    set((state) => {
+      if (state.runtime.activePlan.id !== plan.id) return state;
+      return {
+        shared: {
+          ...state.shared,
+          plan: { places: plan.places, planner: plan.planner, itinerary: plan.itinerary },
+        },
+        runtime: {
+          ...state.runtime,
+          activePlan: {
+            id: plan.id,
+            title: plan.title,
+            dirty: false,
+            needsReplan: plan.needsReplan,
+            itineraryEdited: false,
+            baseline: baselineOf(plan),
+          },
+        },
+      };
+    });
+  },
+
+  setActivePlanTitle(title) {
+    if (title.length > 120) return;
+    set((state) => {
+      const runtime: RuntimeState = {
+        ...state.runtime,
+        activePlan: { ...state.runtime.activePlan, title },
+      };
+      return { runtime: planEdited(state.shared, runtime) };
+    });
+  },
 
   setLocationQuery(query) {
     const value = query.trim();
@@ -170,95 +267,167 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
   },
 
   addPlaceToPlan(place) {
-    const places = get().shared.plan.places;
-    if (places.some((item) => item.id === place.id)) return;
-    const savedPlace = toSavedPlace(place);
-    set((state) => ({
-      shared: {
+    const saved = toSavedPlace(place);
+    set((state) => {
+      if (state.shared.plan.places.some((p) => p.id === saved.id)) return state;
+      const shared = {
         ...state.shared,
-        plan: {
-          ...state.shared.plan,
-          places: [...state.shared.plan.places, savedPlace],
-          itinerary: [],
+        plan: { ...state.shared.plan, places: [...state.shared.plan.places, saved] },
+      };
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            shared.plan.itinerary.some((day) => day.items.length > 0),
         },
-      },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/places", "/plan/itinerary"]) },
-    }));
+        lastMutation: mutation("human", ["/plan/places"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   removePlaceFromPlan(placeId) {
-    set((state) => ({
-      shared: {
+    set((state) => {
+      if (!state.shared.plan.places.some((p) => p.id === placeId)) return state;
+      const affected = state.shared.plan.itinerary.some((day) =>
+        day.items.some((item) => item.placeId === placeId));
+      const shared = {
         ...state.shared,
         plan: {
           ...state.shared.plan,
-          places: state.shared.plan.places.filter((place) => place.id !== placeId),
-          itinerary: [],
+          places: state.shared.plan.places.filter((p) => p.id !== placeId),
+          itinerary: preserveScheduleWithoutPlace(state.shared.plan.itinerary, placeId),
         },
-      },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/places", "/plan/itinerary"]) },
-    }));
+      };
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan || affected,
+        },
+        lastMutation: mutation("human", ["/plan/places", "/plan/itinerary"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanDays(days) {
     const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, days });
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, planner, itinerary: [] } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/days", "/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/days"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanStartDate(startDate) {
     const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, startDate });
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, planner, itinerary: [] } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/startDate", "/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/startDate"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanDailyStartTime(dailyStartTime) {
     const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, dailyStartTime });
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, planner, itinerary: [] } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/dailyStartTime", "/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/dailyStartTime"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanDailyEndTime(dailyEndTime) {
     const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, dailyEndTime });
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, planner, itinerary: [] } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/dailyEndTime", "/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/dailyEndTime"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanPace(pace) {
-    const validated = planPaceSchema.parse(pace);
-    set((state) => ({
-      shared: {
-        ...state.shared,
-        plan: { ...state.shared.plan, planner: { ...state.shared.plan.planner, pace: validated }, itinerary: [] },
-      },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/pace", "/plan/itinerary"]) },
-    }));
+    const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, pace: planPaceSchema.parse(pace) });
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/pace"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setPlanNote(note) {
     const planner = planSettingsSchema.parse({ ...get().shared.plan.planner, note });
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, planner, itinerary: [] } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/planner/note", "/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, planner } };
+      const changed = !same(state.shared.plan.planner, planner);
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: state.runtime.activePlan.needsReplan ||
+            (changed && shared.plan.itinerary.some((day) => day.items.length > 0)),
+        },
+        lastMutation: mutation("human", ["/plan/planner/note"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setItinerary(itinerary) {
     const validated = dayPlanSchema.array().parse(itinerary);
-    set((state) => ({
-      shared: { ...state.shared, plan: { ...state.shared.plan, itinerary: validated } },
-      runtime: { ...state.runtime, lastMutation: mutation("human", ["/plan/itinerary"]) },
-    }));
+    set((state) => {
+      const shared = { ...state.shared, plan: { ...state.shared.plan, itinerary: validated } };
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          itineraryEdited: true,
+          needsReplan: false,
+        },
+        lastMutation: mutation("human", ["/plan/itinerary"]),
+      });
+      return { shared, runtime };
+    });
   },
-
   setChatOpen(chatOpen) {
     set((state) => ({ runtime: { ...state.runtime, chatOpen } }));
   },
@@ -310,19 +479,39 @@ export const useDayFlowStore = create<DayFlowStore>((set, get) => ({
   },
 
   applyAgentSnapshot(snapshot) {
-    const validated = sharedAppStateSchema.parse(snapshot);
-    set((state) => ({ shared: validated, runtime: state.runtime }));
+    // Validate the server snapshot, but do not replace newer local changes.
+    sharedAppStateSchema.parse(snapshot);
   },
 
   applyAgentDelta(delta) {
     assertAgentDeltaAllowed(delta);
     const current = structuredClone(get().shared);
-    const result = applyPatch(current, delta as Parameters<typeof applyPatch>[1], true, false).newDocument;
-    const validated = sharedAppStateSchema.parse(result);
-    set((state) => ({
-      shared: validated,
-      runtime: { ...state.runtime, lastMutation: mutation("agent", delta.map((operation) => operation.path)) },
-    }));
+    const updated = applyPatch(current, delta as Parameters<typeof applyPatch>[1], true, false).newDocument;
+    const shared = sharedAppStateSchema.parse(updated);
+    set((state) => {
+      const changedPlan = delta.some((op) => op.path.startsWith("/plan/"));
+      const planPlaceChange = delta.some((op) => op.path === "/plan/places");
+      const planSettingsChange = delta.some((op) => op.path.startsWith("/plan/planner/"));
+      const itineraryExplicitlyChanged =
+        delta.some((op) => op.path === "/plan/itinerary") && !planPlaceChange;
+      const runtime = planEdited(shared, {
+        ...state.runtime,
+        activePlan: {
+          ...state.runtime.activePlan,
+          needsReplan: itineraryExplicitlyChanged
+            ? false
+            : state.runtime.activePlan.needsReplan ||
+              ((planPlaceChange || planSettingsChange) &&
+                state.shared.plan.itinerary.some((day) => day.items.length > 0)),
+          itineraryEdited: state.runtime.activePlan.itineraryEdited || itineraryExplicitlyChanged,
+        },
+        lastMutation: mutation("agent", delta.map((op) => op.path)),
+      });
+      return { shared, runtime: changedPlan ? runtime : {
+        ...state.runtime,
+        lastMutation: runtime.lastMutation,
+      } };
+    });
   },
 }));
 
