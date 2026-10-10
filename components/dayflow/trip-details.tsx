@@ -44,7 +44,10 @@ function CandidatePlace({ place }: { place: SavedPlace }) {
         <strong>{place.name}</strong>
         <span> · {place.category}</span>
       </div>
-      <button type="button" onClick={() => setExpanded((value) => !value)}>
+      <button type="button" onClick={() => {
+        if (!expanded && (status === "loading" || status === "error")) setStatus("idle");
+        setExpanded((value) => !value);
+      }}>
         {expanded ? "Hide details" : "Place details"}
       </button>
       {expanded && (
