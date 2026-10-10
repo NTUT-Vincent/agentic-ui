@@ -3,25 +3,27 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePlacesQuery } from "@/hooks/use-places-query";
+import { useActivePlan } from "@/hooks/use-active-plan";
 import { useWeatherQuery } from "@/hooks/use-weather-query";
 import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 import type { DayPlan, PlaceDetails, PlaceSummary } from "@/lib/dayflow/state/types";
 import { DayFlowChat } from "../dayflow-chat";
 import { DayFlowHeader } from "../dayflow-header";
+import { ActivePlanPicker } from "../active-plan-picker";
 import { StateActivity } from "../state-activity";
 import { PlanForm } from "./plan-form";
 import { PlanResult } from "./plan-result";
 
-export function DayFlowPlanner() {
+export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
+  const plans = useActivePlan(initialPlanId);
+  const title = useDayFlowStore((store) => store.runtime.activePlan.title);
+  const setTitle = useDayFlowStore((store) => store.setActivePlanTitle);
   const state = useDayFlowStore((store) => store.shared);
   const setItinerary = useDayFlowStore((store) => store.setItinerary);
   const removePlace = useDayFlowStore((store) => store.removePlaceFromPlan);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [savedFingerprint, setSavedFingerprint] = useState<string | null>(null);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
 
   const weather = useWeatherQuery(state.location.latitude, state.location.longitude);
@@ -30,12 +32,6 @@ export function DayFlowPlanner() {
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selectedPlaces: PlaceSummary[] = state.plan.places.map((place) => ({ ...place }));
   const savedPlaceIds = useMemo(() => state.plan.places.map((place) => place.id), [state.plan.places]);
-  const tripFingerprint = useMemo(
-    () => JSON.stringify({ location: state.location, plan: state.plan }),
-    [state.location, state.plan],
-  );
-  const isSaved = savedFingerprint === tripFingerprint;
-
   useEffect(() => {
     const controller = new AbortController();
 
@@ -83,6 +79,7 @@ export function DayFlowPlanner() {
   );
 
   async function generate() {
+    if (!plans.active.id || plans.busy || plans.loading) return;
     setGenerating(true);
     setError(null);
     try {
@@ -101,33 +98,6 @@ export function DayFlowPlanner() {
     }
   }
 
-  async function saveTrip() {
-    if (saving || generating || isSaved || state.plan.itinerary.length === 0) return;
-    setSaving(true);
-    setSaveError(null);
-    const snapshot = tripFingerprint;
-
-    try {
-      const response = await fetch("/api/dayflow/trips", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: snapshot,
-      });
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error("Sign in with Google to save your trip.");
-        }
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error ?? "Failed to save trip.");
-      }
-      setSavedFingerprint(snapshot);
-    } catch (cause) {
-      setSaveError(cause instanceof Error ? cause.message : "Failed to save trip.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <div className="dayflow-app planner-app">
       <DayFlowHeader />
@@ -141,26 +111,45 @@ export function DayFlowPlanner() {
           </div>
           <div className="planner-header-actions">
             <div className="planner-action-buttons">
-              <button className="dayflow-primary planner-generate" disabled={generating || state.plan.places.length === 0} onClick={generate}>
+              <button className="dayflow-primary planner-generate" disabled={generating || plans.loading || plans.busy || !plans.active.id || state.plan.places.length === 0} onClick={generate}>
                 {generating ? "Planning…" : state.plan.itinerary.length ? "Regenerate itinerary" : "Generate itinerary"}
               </button>
               <button
                 type="button"
                 className="planner-save"
-                disabled={generating || saving || isSaved || state.plan.itinerary.length === 0}
-                onClick={() => void saveTrip()}
+                disabled={!plans.active.id || !plans.active.dirty || !title?.trim() ||
+                  plans.busy || plans.loading || generating || plans.agentStatus === "running"}
+                onClick={() => void plans.saveChanges()}
               >
-                {saving ? "Saving…" : isSaved ? "Saved ✓" : "Save trip"}
+                {plans.busy ? "Saving…" : plans.active.dirty ? "Save Changes"
+                  : plans.active.id ? "Saved ✓" : "Choose Plan"}
               </button>
             </div>
-            {saveError && <p className="planner-save-message error" role="alert">{saveError}</p>}
-            {isSaved && !saveError && (
-              <p className="planner-save-message" role="status">
-                Saved successfully · <Link href="/my-trips">View My Trips →</Link>
-              </p>
+            {plans.active.needsReplan && (
+              <p className="planner-save-message">Your itinerary may need an update.</p>
             )}
           </div>
         </header>
+
+        <ActivePlanPicker
+          plans={plans.plans}
+          selectedId={plans.active.id}
+          dirty={plans.active.dirty}
+          busy={plans.busy}
+          loading={plans.loading}
+          unauthorized={plans.unauthorized}
+          error={plans.error}
+          onSelect={plans.load}
+          onCreate={plans.create}
+          onSave={plans.saveChanges}
+        />
+        <label className="planner-plan-title">
+          Plan name
+          <input value={title ?? ""} maxLength={120}
+            disabled={!plans.active.id || plans.busy || plans.loading ||
+              plans.agentStatus === "running"}
+            onChange={(event) => setTitle(event.target.value)} />
+        </label>
 
         <div className="planner-layout">
           <div>

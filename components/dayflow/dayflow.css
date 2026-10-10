@@ -274,3 +274,61 @@
     font-size: 32px;
   }
 }
+
+/* Active Plan / persistent Planner */
+.dayflow-active-plan {
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  border: 1px solid #e1e3e6;
+  border-radius: 16px;
+  background: #fff;
+}
+.dayflow-active-plan-heading,
+.dayflow-active-plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.dayflow-active-plan select,
+.dayflow-active-plan input,
+.planner-plan-title input {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid #d7d7d7;
+  border-radius: 9px;
+  background: #fff;
+}
+.dayflow-active-plan button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border: 1px solid #d7d7d7;
+  border-radius: 9px;
+  background: #fff;
+  cursor: pointer;
+}
+.dayflow-active-plan button:disabled { opacity: .5; cursor: not-allowed; }
+.dayflow-active-plan-actions a { color: #171717; }
+.dayflow-active-plan form { display: flex; flex-wrap: wrap; gap: 8px; }
+.dayflow-unsaved { color: #985b00; font-size: 12px; }
+.dayflow-plan-error { color: #aa2222; font-size: 12px; margin: 8px 0 0; }
+.planner-plan-title { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
+.trip-details-actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 18px 0; }
+.trip-details-actions a { text-decoration: none; }
+.trip-details-candidates {
+  margin: 22px 0;
+  padding: 20px;
+  border: 1px solid #e2e2e2;
+  border-radius: 18px;
+  background: #fff;
+}
+.trip-details-candidate { padding: 10px 0; border-bottom: 1px solid #eee; }
+.trip-details-candidate button { margin-left: 12px; border: 0; color: #555; background: transparent; cursor: pointer; text-decoration: underline; }
+.trip-details-candidate-info { padding: 8px 0; color: #666; }
+.trip-details-candidate-info p { margin: 4px 0; }
+.trip-details-candidate-info a { text-decoration: underline; }
+@media (max-width: 700px) {
+  .dayflow-active-plan select { width: 100%; }
+  .trip-details-actions { flex-direction: column; }
+}

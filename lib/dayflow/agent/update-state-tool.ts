@@ -103,22 +103,27 @@ export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppS
     case "set_view": return [{ op: "replace", path: "/view/mode", value: action.view }];
     case "select_place": return [{ op: "replace", path: "/selection/placeId", value: action.placeId }];
     case "add_to_plan": {
-      if (!savedPlace) throw new Error(`Missing saved place snapshot for ${action.placeId}`);
-      const places = state.plan.places.some((place) => place.id === action.placeId)
-        ? state.plan.places
-        : [...state.plan.places, savedPlace];
-      return [{ op: "replace", path: "/plan/places", value: places }, { op: "replace", path: "/plan/itinerary", value: [] }];
+      if (!savedPlace) throw new Error("Missing saved place snapshot for " + action.placeId);
+      const places = state.plan.places.some((p) => p.id === action.placeId)
+        ? state.plan.places : [...state.plan.places, savedPlace];
+      return [{ op: "replace", path: "/plan/places", value: places }];
     }
-    case "remove_from_plan": return [
-      { op: "replace", path: "/plan/places", value: state.plan.places.filter((place) => place.id !== action.placeId) },
-      { op: "replace", path: "/plan/itinerary", value: [] },
-    ];
-    case "set_plan_days": return [{ op: "replace", path: "/plan/planner/days", value: action.days }, { op: "replace", path: "/plan/itinerary", value: [] }];
-    case "set_plan_start_date": return [{ op: "replace", path: "/plan/planner/startDate", value: action.startDate }, { op: "replace", path: "/plan/itinerary", value: [] }];
-    case "set_plan_start_time": return [{ op: "replace", path: "/plan/planner/dailyStartTime", value: action.time }, { op: "replace", path: "/plan/itinerary", value: [] }];
-    case "set_plan_end_time": return [{ op: "replace", path: "/plan/planner/dailyEndTime", value: action.time }, { op: "replace", path: "/plan/itinerary", value: [] }];
-    case "set_plan_pace": return [{ op: "replace", path: "/plan/planner/pace", value: action.pace }, { op: "replace", path: "/plan/itinerary", value: [] }];
-    case "set_plan_note": return [{ op: "replace", path: "/plan/planner/note", value: action.note }, { op: "replace", path: "/plan/itinerary", value: [] }];
+    case "remove_from_plan": {
+      const places = state.plan.places.filter((p) => p.id !== action.placeId);
+      const itinerary = state.plan.itinerary.map((day) => ({
+        ...day, items: day.items.filter((item) => item.placeId !== action.placeId),
+      }));
+      return [
+        { op: "replace", path: "/plan/places", value: places },
+        { op: "replace", path: "/plan/itinerary", value: itinerary },
+      ];
+    }
+    case "set_plan_days": return [{ op: "replace", path: "/plan/planner/days", value: action.days }];
+    case "set_plan_start_date": return [{ op: "replace", path: "/plan/planner/startDate", value: action.startDate }];
+    case "set_plan_start_time": return [{ op: "replace", path: "/plan/planner/dailyStartTime", value: action.time }];
+    case "set_plan_end_time": return [{ op: "replace", path: "/plan/planner/dailyEndTime", value: action.time }];
+    case "set_plan_pace": return [{ op: "replace", path: "/plan/planner/pace", value: action.pace }];
+    case "set_plan_note": return [{ op: "replace", path: "/plan/planner/note", value: action.note }];
     case "reset_filters": return [
       { op: "replace", path: "/filters/categories", value: [] },
       { op: "replace", path: "/filters/radiusKm", value: 2 },
@@ -129,7 +134,6 @@ export function buildActionDelta(action: UpdateAppStateAction, state: SharedAppS
 }
 
 export function applyActionToState(action: UpdateAppStateAction, state: SharedAppState, savedPlace?: SavedPlace): SharedAppState {
-  const clearItinerary = (next: SharedAppState): SharedAppState => ({ ...next, plan: { ...next.plan, itinerary: [] } });
   switch (action.type) {
     case "set_location": return { ...state, location: { ...state.location, query: action.locationQuery } };
     case "set_categories": return { ...state, filters: { ...state.filters, categories: action.categories } };
@@ -139,17 +143,26 @@ export function applyActionToState(action: UpdateAppStateAction, state: SharedAp
     case "set_view": return { ...state, view: { mode: action.view } };
     case "select_place": return { ...state, selection: { placeId: action.placeId } };
     case "add_to_plan": {
-      if (state.plan.places.some((place) => place.id === action.placeId)) return state;
-      if (!savedPlace) throw new Error(`Missing saved place snapshot for ${action.placeId}`);
-      return clearItinerary({ ...state, plan: { ...state.plan, places: [...state.plan.places, savedPlace] } });
+      if (state.plan.places.some((p) => p.id === action.placeId)) return state;
+      if (!savedPlace) throw new Error("Missing saved place snapshot for " + action.placeId);
+      return { ...state, plan: { ...state.plan, places: [...state.plan.places, savedPlace] } };
     }
-    case "remove_from_plan": return clearItinerary({ ...state, plan: { ...state.plan, places: state.plan.places.filter((place) => place.id !== action.placeId) } });
-    case "set_plan_days": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, days: action.days } } });
-    case "set_plan_start_date": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, startDate: action.startDate } } });
-    case "set_plan_start_time": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, dailyStartTime: action.time } } });
-    case "set_plan_end_time": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, dailyEndTime: action.time } } });
-    case "set_plan_pace": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, pace: action.pace } } });
-    case "set_plan_note": return clearItinerary({ ...state, plan: { ...state.plan, planner: { ...state.plan.planner, note: action.note } } });
+    case "remove_from_plan": return {
+      ...state,
+      plan: {
+        ...state.plan,
+        places: state.plan.places.filter((p) => p.id !== action.placeId),
+        itinerary: state.plan.itinerary.map((day) => ({
+          ...day, items: day.items.filter((item) => item.placeId !== action.placeId),
+        })),
+      },
+    };
+    case "set_plan_days": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, days: action.days } } };
+    case "set_plan_start_date": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, startDate: action.startDate } } };
+    case "set_plan_start_time": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, dailyStartTime: action.time } } };
+    case "set_plan_end_time": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, dailyEndTime: action.time } } };
+    case "set_plan_pace": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, pace: action.pace } } };
+    case "set_plan_note": return { ...state, plan: { ...state.plan, planner: { ...state.plan.planner, note: action.note } } };
     case "reset_filters": return { ...state, filters: { categories: [], radiusKm: 2, environment: "all", sortBy: "distance" } };
   }
 }

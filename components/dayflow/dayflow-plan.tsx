@@ -3,25 +3,34 @@
 import Link from "next/link";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 
-export function DayFlowPlan() {
-  const places = useDayFlowStore((state) => state.shared.plan.places);
-  const remove = useDayFlowStore((state) => state.removePlaceFromPlan);
+type Props = {
+  activePlanId: string | null;
+  busy: boolean;
+  dirty: boolean;
+  onRemove: (id: string) => Promise<boolean>;
+};
 
-  if (places.length === 0) return null;
-
+export function DayFlowPlan({ activePlanId, busy, dirty, onRemove }: Props) {
+  const places = useDayFlowStore((s) => s.shared.plan.places);
+  if (!activePlanId) return null;
   return (
     <section className="dayflow-plan">
       <div className="dayflow-plan-header">
-        <strong>My plan</strong>
-        <Link href="/plan" className="dayflow-plan-write">Write plan →</Link>
+        <strong>My plan · {places.length} places</strong>
+        <Link href={"/plan?planId=" + encodeURIComponent(activePlanId)}>Open Planner →</Link>
       </div>
-      <div className="dayflow-plan-items">
-        {places.map((place) => (
-          <button key={place.id} onClick={() => remove(place.id)} title="Remove from plan">
-            {place.name} ×
-          </button>
-        ))}
-      </div>
+      {places.length === 0 ? <p>Add a location from Explore to get started.</p> : (
+        <div className="dayflow-plan-items">
+          {places.map((place) => (
+            <button key={place.id} type="button"
+              disabled={busy || dirty}
+              title={dirty ? "Save changes first" : "Remove from plan"}
+              onClick={() => void onRemove(place.id)}>
+              {place.name} ×
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   );
 }

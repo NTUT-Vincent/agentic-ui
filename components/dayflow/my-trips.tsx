@@ -4,15 +4,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { DayFlowHeader } from "./dayflow-header";
 
-type TripSummary = {
-  id: string;
-  title: string;
-  city: string;
-  country: string;
-  days: number;
-  placeCount: number;
-  createdAt: string;
-};
+import type { PlanSummary } from "@/lib/dayflow/plans/client";
+
+type TripSummary = PlanSummary;
 
 type LoadStatus = "loading" | "ready" | "unauthorized" | "error";
 
@@ -25,7 +19,7 @@ export function MyTrips() {
 
     async function loadTrips() {
       try {
-        const response = await fetch("/api/dayflow/trips", {
+        const response = await fetch("/api/dayflow/plans", {
           signal: controller.signal,
           cache: "no-store",
         });
@@ -37,10 +31,10 @@ export function MyTrips() {
         }
         if (!response.ok) throw new Error("Failed to fetch trips.");
 
-        const result = (await response.json()) as { trips?: TripSummary[] };
+        const result = (await response.json()) as { plans?: TripSummary[] };
         if (controller.signal.aborted) return;
-        if (!Array.isArray(result.trips)) throw new Error("Invalid trips response.");
-        setTrips(result.trips);
+        if (!Array.isArray(result.plans)) throw new Error("Invalid trips response.");
+        setTrips(result.plans!);
         setStatus("ready");
       } catch {
         if (!controller.signal.aborted) setStatus("error");
@@ -57,9 +51,9 @@ export function MyTrips() {
       <main className="my-trips-shell">
         <header className="my-trips-header">
           <Link href="/" className="planner-back">← Back to explore</Link>
-          <span className="dayflow-kicker">YOUR SAVED ITINERARIES</span>
+          <span className="dayflow-kicker">YOUR SAVED PLANS</span>
           <h1>My Trips</h1>
-          <p>Keep your AI-planned itineraries in one place.</p>
+          <p>Collect places and plan itineraries at your own pace.</p>
         </header>
 
         {status === "loading" && (
@@ -82,9 +76,9 @@ export function MyTrips() {
 
         {status === "ready" && trips.length === 0 && (
           <section className="my-trips-empty">
-            <h2>No trips saved yet</h2>
-            <p>Generate an itinerary in Dayflow Planner and select Save trip.</p>
-            <Link className="dayflow-primary my-trips-link" href="/plan">Go to planner →</Link>
+            <h2>No plans saved yet</h2>
+            <p>Create a Plan in Explore, then add places to it.</p>
+            <Link className="dayflow-primary my-trips-link" href="/">Explore Plans →</Link>
           </section>
         )}
 
@@ -101,15 +95,15 @@ export function MyTrips() {
                   <span className="dayflow-kicker">{trip.city}, {trip.country}</span>
                   <h2>{trip.title}</h2>
                   <p>{trip.days} {trip.days === 1 ? "day" : "days"} · {trip.placeCount} {trip.placeCount === 1 ? "place" : "places"}</p>
-                  <time dateTime={trip.createdAt}>
-                    Saved {new Date(trip.createdAt).toLocaleDateString(undefined, {
+                  <time dateTime={trip.updatedAt}>
+                    Updated {new Date(trip.updatedAt).toLocaleDateString(undefined, {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
                     })}
                   </time>
                   <span className="my-trips-card-action">
-                    View itinerary →
+                    View Plan →
                   </span>
                 </Link>
               ))}
