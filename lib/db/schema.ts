@@ -6,9 +6,11 @@ import {
   primaryKey,
   jsonb,
   index,
+  boolean,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
-import type { SharedAppState } from "@/lib/dayflow/state/types";
+import type { SavedPlace, SharedAppState } from "@/lib/dayflow/state/types";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey()
@@ -79,5 +81,45 @@ export const trips = pgTable(
   (table) => [
     index("trips_user_created_idx")
       .on(table.userId, table.createdAt),
+  ],
+);
+
+export const plans = pgTable(
+  "plans",
+  {
+    id: text("id").primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    userId: text("user_id").notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    location: jsonb("location").$type<SharedAppState["location"]>().notNull(),
+    planner: jsonb("planner").$type<SharedAppState["plan"]["planner"]>().notNull(),
+    itinerary: jsonb("itinerary").$type<SharedAppState["plan"]["itinerary"]>()
+      .notNull().default(sql`'[]'::jsonb`),
+    needsReplan: boolean("needs_replan").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
+      .notNull().defaultNow(),
+  },
+  (table) => [
+    index("plans_user_updated_idx").on(table.userId, table.updatedAt),
+  ],
+);
+
+export const planPlaces = pgTable(
+  "plan_places",
+  {
+    planId: text("plan_id").notNull()
+      .references(() => plans.id, { onDelete: "cascade" }),
+    placeId: text("place_id").notNull(),
+    snapshot: jsonb("snapshot").$type<SavedPlace>().notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
+      .notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ name: "plan_places_plan_id_place_id_pk", columns: [table.planId, table.placeId] }),
+    index("plan_places_plan_sort_idx").on(table.planId, table.sortOrder),
   ],
 );
