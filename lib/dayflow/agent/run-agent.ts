@@ -5,7 +5,7 @@ import { model } from "@/lib/agent/model";
 import type { AgentEvent } from "@/lib/agui/events";
 import { MAX_AGENT_STEPS, type AgentDependency, type SavedPlace, type SharedAppState } from "../state/types";
 import type { DayFlowAgentContext } from "./context";
-import { uiActionFlowSchema, type UIActionResult } from "./ui-action-tool";
+import { uiActionFlowSchema, uiActionToolSchema, type UIActionResult } from "./ui-action-tool";
 import {
   actionNeedsPlaceContext,
   applyActionToState,
@@ -22,7 +22,7 @@ const MODEL_MAX_RETRIES = 2;
 const executeUIActionsTool = tool(async (input) => input, {
   name: "execute_ui_actions",
   description: "Execute existing Dayflow UI controls in order: open the active planner, change days or pace, generate, save or remove a place. Browser execution results arrive in a later step.",
-  schema: uiActionFlowSchema,
+  schema: uiActionToolSchema,
 });
 
 function text(content: unknown) {
