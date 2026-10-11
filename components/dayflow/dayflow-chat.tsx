@@ -1,12 +1,18 @@
 "use client";
 
 import { EventType } from "@ag-ui/core";
-import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { usePlacesQuery } from "@/hooks/use-places-query";
+import { useWeatherQuery } from "@/hooks/use-weather-query";
+import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
+import { registerUIAction, executeUIAction, waitForUIAction } from "@/lib/dayflow/frontend/ui-action-registry";
+import { uiActionFlowSchema, type UIAction, type UIActionResult } from "@/lib/dayflow/agent/ui-action-tool";
+import { MAX_AGENT_STEPS } from "@/lib/dayflow/state/types";
 import { buildAgentContext } from "@/lib/dayflow/agent/context";
 import type {
   AgentDependency,
   PlaceSummary,
-  WeatherSummary,
 } from "@/lib/dayflow/state/types";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 
@@ -49,12 +55,7 @@ type ContinuationValue = {
 
 type PendingContinuation = ContinuationValue & {
   baseline: DayFlowQueryStatus;
-};
-
-type Props = {
-  weather: WeatherSummary | null;
-  visiblePlaces: PlaceSummary[];
-  queryStatus: DayFlowQueryStatus;
+  uiActionResult?: UIActionResult;
 };
 
 function placeName(places: PlaceSummary[], placeId: unknown) {
@@ -114,7 +115,34 @@ function dependenciesReady(pending: PendingContinuation, current: DayFlowQuerySt
   return locationReady && placesReady && weatherReady;
 }
 
-export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
+export function DayFlowChat() {
+  const router = useRouter();
+  const shared = useDayFlowStore((store) => store.shared);
+  const weatherQuery = useWeatherQuery(shared.location.latitude, shared.location.longitude);
+  const placesQuery = usePlacesQuery(
+    shared.location.latitude,
+    shared.location.longitude,
+    shared.filters.radiusKm,
+  );
+  const weather = weatherQuery.data ?? null;
+  const visiblePlaces = useMemo(
+    () => getVisiblePlaces(shared, placesQuery.data ?? []),
+    [shared, placesQuery.data],
+  );
+  const queryStatus: DayFlowQueryStatus = useMemo(() => ({
+    locationKey: `${shared.location.latitude}:${shared.location.longitude}`,
+    placesKey: `${shared.location.latitude}:${shared.location.longitude}:${shared.filters.radiusKm}`,
+    weatherKey: `${shared.location.latitude}:${shared.location.longitude}`,
+    contextKey: JSON.stringify({
+      categories: shared.filters.categories,
+      environment: shared.filters.environment,
+      radiusKm: shared.filters.radiusKm,
+      placeIds: visiblePlaces.map((place) => place.id),
+    }),
+    placesFetching: placesQuery.isFetching,
+    weatherFetching: weatherQuery.isFetching,
+  }), [shared, visiblePlaces, placesQuery.isFetching, weatherQuery.isFetching]);
+
   const open = useDayFlowStore((state) => state.runtime.chatOpen);
   const status = useDayFlowStore((state) => state.runtime.agentStatus);
   const runState = useDayFlowStore((state) => state.runtime.agentRun);
@@ -134,12 +162,25 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
 
   const threadId = useRef(crypto.randomUUID());
   const argumentBuffers = useRef(new Map<string, string>());
+  const toolNames = useRef(new Map<string, string>());
   const resumeInFlight = useRef(false);
   const queryRef = useRef(queryStatus);
   const dataRef = useRef({ weather, visiblePlaces });
 
   queryRef.current = queryStatus;
   dataRef.current = { weather, visiblePlaces };
+
+  useEffect(() => {
+    return registerUIAction("plan.open", async () => {
+      const activePlanId = useDayFlowStore.getState().runtime.activePlan.id;
+      if (!activePlanId) throw new Error("Choose a Plan first");
+      if (window.location.pathname !== "/plan") {
+        router.push(`/plan?planId=${encodeURIComponent(activePlanId)}`);
+      }
+      await waitForUIAction("plan.generate");
+      return { opened: true, planId: activePlanId };
+    });
+  }, [router]);
 
   const handleEvent = useCallback(
     (event: ClientAgentEvent) => {
@@ -168,6 +209,7 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
         case EventType.TOOL_CALL_START: {
           const id = String(event.toolCallId);
           argumentBuffers.current.set(id, "");
+          toolNames.current.set(id, String(event.toolCallName));
           setActivities((current) => [
             ...current,
             { id, label: "Updating DayFlow", status: "running" },
@@ -232,12 +274,28 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
   const runAgentRequest = useCallback(
     async (
       goal: string,
-      continuation?: { goal: string; step: number; previousRunId: string },
+      continuation?: {
+        goal: string;
+        step: number;
+        previousRunId: string;
+        uiActionResult?: UIActionResult;
+      },
     ) => {
       const requestBaseline = queryRef.current;
       const state = useDayFlowStore.getState().shared;
       const currentData = dataRef.current;
-      const context = buildAgentContext(state, currentData.weather, currentData.visiblePlaces);
+      const activePlan = useDayFlowStore.getState().runtime.activePlan;
+      const context = {
+        ...buildAgentContext(state, currentData.weather, currentData.visiblePlaces),
+        ui: {
+          pathname: window.location.pathname,
+          activePlan: {
+            id: activePlan.id,
+            title: activePlan.title,
+            dirty: activePlan.dirty,
+          },
+        },
+      };
 
       console.log("[DayFlow][client:request]", {
         goal,
@@ -268,6 +326,8 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
       let buffer = "";
       let nextContinuation: ContinuationValue | null = null;
       let runError: string | null = null;
+      let uiResult: UIActionResult | null = null;
+      let currentRunId: string | null = null;
 
       while (true) {
         const { value, done } = await reader.read();
@@ -287,11 +347,95 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
             runError = String(event.message ?? "Agent error");
           }
 
+          if (event.type === EventType.RUN_STARTED) {
+            currentRunId = String(event.runId);
+          }
+
           handleEvent(event);
+
+          if (
+            event.type === EventType.TOOL_CALL_END &&
+            toolNames.current.get(String(event.toolCallId)) === "execute_ui_actions"
+          ) {
+            const id = String(event.toolCallId);
+            const raw = argumentBuffers.current.get(id) ?? "";
+            const completed: UIActionResult["completed"] = [];
+            let executing: UIAction | undefined;
+
+            try {
+              const flow = uiActionFlowSchema.parse(JSON.parse(raw));
+
+              for (const action of flow.actions) {
+                executing = action;
+                const result = await executeUIAction(action);
+                completed.push({ id: action.id, result });
+              }
+
+              uiResult = { ok: true, completed };
+            } catch (error) {
+              uiResult = {
+                ok: false,
+                completed,
+                failed: {
+                  id: executing?.id,
+                  message: error instanceof Error ? error.message : "Frontend action failed",
+                },
+              };
+            }
+
+            const result = uiResult;
+            setActivities((current) =>
+              current.map((activity) =>
+                activity.id === id
+                  ? {
+                      ...activity,
+                      label: "Frontend UI actions",
+                      status: result.ok ? "completed" : "failed",
+                      result: result.ok
+                        ? `${completed.length} actions completed`
+                        : result.failed?.message,
+                    }
+                  : activity,
+              ),
+            );
+
+            toolNames.current.delete(id);
+            argumentBuffers.current.delete(id);
+          }
         }
       }
 
       if (runError) throw new Error(runError);
+
+      if (uiResult) {
+        const nextStep = (continuation?.step ?? 1) + 1;
+        if (!currentRunId || nextStep > MAX_AGENT_STEPS) {
+          setMessages((current) => [
+            ...current,
+            {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: uiResult!.ok
+                ? "UI actions finished. The agent step limit was reached."
+                : `UI action failed: ${uiResult!.failed?.message}`,
+            },
+          ]);
+          finishAgentRun();
+          return;
+        }
+
+        setPendingContinuation({
+          goal,
+          step: nextStep,
+          maxSteps: MAX_AGENT_STEPS,
+          previousRunId: currentRunId,
+          waitFor: [],
+          baseline: queryRef.current,
+          uiActionResult: uiResult,
+        });
+        setAgentWaiting([], nextStep, currentRunId);
+        return;
+      }
 
       if (nextContinuation) {
         const pending: PendingContinuation = {
@@ -345,6 +489,7 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
       goal: pendingContinuation.goal,
       step: pendingContinuation.step,
       previousRunId: pendingContinuation.previousRunId,
+      uiActionResult: pendingContinuation.uiActionResult,
     })
       .catch(failRun)
       .finally(() => {
@@ -378,6 +523,7 @@ export function DayFlowChat({ weather, visiblePlaces, queryStatus }: Props) {
     setActivities([]);
     setPendingContinuation(null);
     argumentBuffers.current.clear();
+    toolNames.current.clear();
     setMessages((current) => [
       ...current,
       { id: crypto.randomUUID(), role: "user", content: prompt },
