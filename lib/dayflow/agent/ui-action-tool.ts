@@ -22,6 +22,19 @@ export const uiActionFlowSchema = z.object({
   actions: z.array(uiActionSchema).min(1).max(8),
 });
 
+// Gemini receives a flat, permissive tool-facing schema. The backend validates
+// the resulting arguments using the strict discriminated union above.
+export const uiActionToolSchema = z.object({
+  actions: z.array(z.object({
+    id: z.enum(["plan.open", "plan.setDays", "plan.setPace", "plan.generate", "plan.save", "plan.removePlace"]),
+    args: z.object({
+      days: z.number().int().optional(),
+      pace: z.enum(["relaxed", "balanced", "packed"]).optional(),
+      placeId: z.string().optional(),
+    }),
+  })).min(1).max(8),
+});
+
 export type UIAction = z.infer<typeof uiActionSchema>;
 
 export const uiActionResultSchema = z.object({
