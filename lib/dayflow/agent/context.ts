@@ -2,6 +2,10 @@ import type { PlaceSummary, SharedAppState, WeatherSummary } from "../state/type
 export type DayFlowAgentContext = {
   weather: { temperatureC: number; apparentTemperatureC: number; rainNextHours: number[] } | null;
   visiblePlaces: Array<Pick<PlaceSummary, "id" | "name" | "category" | "latitude" | "longitude" | "distanceMeters" | "environment">>;
+  ui?: {
+    pathname: string;
+    activePlan: { id: string | null; title: string | null; dirty: boolean };
+  };
 };
 export function buildAgentContext(_state: SharedAppState, weather: WeatherSummary | null, places: PlaceSummary[]): DayFlowAgentContext {
   return {
