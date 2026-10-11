@@ -18,7 +18,6 @@ export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
   const title = useDayFlowStore((store) => store.runtime.activePlan.title);
   const setTitle = useDayFlowStore((store) => store.setActivePlanTitle);
   const state = useDayFlowStore((store) => store.shared);
-  const setItinerary = useDayFlowStore((store) => store.setItinerary);
   const removePlace = useDayFlowStore((store) => store.removePlaceFromPlan);
   const [generating, setGenerating] = useState(false);
   const generatingRef = useRef(false);
