@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { usePlacesQuery } from "@/hooks/use-places-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useActivePlan } from "@/hooks/use-active-plan";
 import { useWeatherQuery } from "@/hooks/use-weather-query";
-import { getVisiblePlaces } from "@/lib/dayflow/state/selectors";
 import { useDayFlowStore } from "@/lib/dayflow/state/store";
 import type { DayPlan, PlaceDetails, PlaceSummary } from "@/lib/dayflow/state/types";
-import { DayFlowChat } from "../dayflow-chat";
 import { DayFlowHeader } from "../dayflow-header";
 import { ActivePlanPicker } from "../active-plan-picker";
 import { StateActivity } from "../state-activity";
+import { registerUIAction } from "@/lib/dayflow/frontend/ui-action-registry";
 import { PlanForm } from "./plan-form";
 import { PlanResult } from "./plan-result";
 
@@ -23,13 +21,11 @@ export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
   const setItinerary = useDayFlowStore((store) => store.setItinerary);
   const removePlace = useDayFlowStore((store) => store.removePlaceFromPlan);
   const [generating, setGenerating] = useState(false);
+  const generatingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [placeDetails, setPlaceDetails] = useState<Record<string, PlaceDetails>>({});
 
   const weather = useWeatherQuery(state.location.latitude, state.location.longitude);
-  const places = usePlacesQuery(state.location.latitude, state.location.longitude, state.filters.radiusKm);
-  const allPlaces = places.data ?? [];
-  const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selectedPlaces: PlaceSummary[] = state.plan.places.map((place) => ({ ...place }));
   const savedPlaceIds = useMemo(() => state.plan.places.map((place) => place.id), [state.plan.places]);
   useEffect(() => {
@@ -61,42 +57,79 @@ export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
     return () => controller.abort();
   }, [savedPlaceIds]);
 
-  const queryStatus = useMemo(
-    () => ({
-      locationKey: `${state.location.latitude}:${state.location.longitude}`,
-      placesKey: `${state.location.latitude}:${state.location.longitude}:${state.filters.radiusKm}`,
-      weatherKey: `${state.location.latitude}:${state.location.longitude}`,
-      contextKey: JSON.stringify({
-        categories: state.filters.categories,
-        environment: state.filters.environment,
-        radiusKm: state.filters.radiusKm,
-        placeIds: visible.map((place) => place.id),
-      }),
-      placesFetching: places.isFetching,
-      weatherFetching: weather.isFetching,
-    }),
-    [state.location.latitude, state.location.longitude, state.filters.categories, state.filters.environment, state.filters.radiusKm, visible, places.isFetching, weather.isFetching],
-  );
+  const generate = useCallback(async () => {
+    const store = useDayFlowStore.getState();
+    const currentState = store.shared;
 
-  async function generate() {
-    if (!plans.active.id || plans.busy || plans.loading) return;
+    if (
+      !store.runtime.activePlan.id ||
+      currentState.plan.places.length === 0 ||
+      plans.busy ||
+      plans.loading ||
+      generatingRef.current
+    ) {
+      throw new Error("Planner is not ready");
+    }
+
+    generatingRef.current = true;
     setGenerating(true);
     setError(null);
+
     try {
       const response = await fetch("/api/dayflow/plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ state, weather: weather.data ?? null }),
+        body: JSON.stringify({ state: currentState, weather: weather.data ?? null }),
       });
       const data = (await response.json()) as { itinerary?: DayPlan[]; error?: string };
-      if (!response.ok || !data.itinerary) throw new Error(data.error ?? "Failed to generate itinerary");
-      setItinerary(data.itinerary);
+      if (!response.ok || !data.itinerary) {
+        throw new Error(data.error ?? "Failed to generate itinerary");
+      }
+      useDayFlowStore.getState().setItinerary(data.itinerary);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Failed to generate itinerary");
+      throw cause;
     } finally {
+      generatingRef.current = false;
       setGenerating(false);
     }
-  }
+  }, [plans.busy, plans.loading, weather.data]);
+
+  useEffect(() => {
+    if (plans.loading || !plans.active.id) return;
+
+    const unregister = [
+      registerUIAction("plan.setDays", ({ days }) => {
+        useDayFlowStore.getState().setPlanDays(days);
+        return { days };
+      }),
+      registerUIAction("plan.setPace", ({ pace }) => {
+        useDayFlowStore.getState().setPlanPace(pace);
+        return { pace };
+      }),
+      registerUIAction("plan.generate", async () => {
+        await generate();
+        return { generated: true };
+      }),
+      registerUIAction("plan.save", async () => {
+        const active = useDayFlowStore.getState().runtime.activePlan;
+        if (!active.dirty) return { alreadySaved: true };
+        const success = await plans.saveChanges({ allowAgentRun: true });
+        if (!success) throw new Error("Save Changes failed");
+        return { saved: true };
+      }),
+      registerUIAction("plan.removePlace", ({ placeId }) => {
+        const store = useDayFlowStore.getState();
+        if (!store.shared.plan.places.some((place) => place.id === placeId)) {
+          throw new Error("Place not found in Plan");
+        }
+        store.removePlaceFromPlan(placeId);
+        return { removed: placeId };
+      }),
+    ];
+
+    return () => unregister.forEach((dispose) => dispose());
+  }, [plans.loading, plans.active.id, plans.saveChanges, generate]);
 
   return (
     <div className="dayflow-app planner-app">
@@ -111,7 +144,7 @@ export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
           </div>
           <div className="planner-header-actions">
             <div className="planner-action-buttons">
-              <button className="dayflow-primary planner-generate" disabled={generating || plans.loading || plans.busy || !plans.active.id || state.plan.places.length === 0} onClick={generate}>
+              <button className="dayflow-primary planner-generate" disabled={generating || plans.loading || plans.busy || !plans.active.id || state.plan.places.length === 0} onClick={() => void generate().catch(() => {})}>
                 {generating ? "Planning…" : state.plan.itinerary.length ? "Regenerate itinerary" : "Generate itinerary"}
               </button>
               <button
@@ -196,7 +229,6 @@ export function DayFlowPlanner({ initialPlanId }: { initialPlanId?: string }) {
       </main>
 
       <StateActivity />
-      <DayFlowChat weather={weather.data ?? null} visiblePlaces={visible} queryStatus={queryStatus} />
     </div>
   );
 }
