@@ -24,6 +24,18 @@ export const uiActionFlowSchema = z.object({
 
 export type UIAction = z.infer<typeof uiActionSchema>;
 
+export const uiActionResultSchema = z.object({
+  ok: z.boolean(),
+  completed: z.array(z.object({
+    id: z.enum(["plan.open", "plan.setDays", "plan.setPace", "plan.generate", "plan.save", "plan.removePlace"]),
+    result: z.unknown(),
+  })).max(8),
+  failed: z.object({
+    id: z.enum(["plan.open", "plan.setDays", "plan.setPace", "plan.generate", "plan.save", "plan.removePlace"]).optional(),
+    message: z.string().max(2000),
+  }).optional(),
+});
+
 export type UIActionResult = {
   ok: boolean;
   completed: Array<{ id: UIAction["id"]; result: unknown }>;
