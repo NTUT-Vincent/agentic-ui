@@ -1,9 +1,11 @@
 import { EventType } from "@ag-ui/core";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { tool } from "@langchain/core/tools";
 import { model } from "@/lib/agent/model";
 import type { AgentEvent } from "@/lib/agui/events";
 import { MAX_AGENT_STEPS, type AgentDependency, type SavedPlace, type SharedAppState } from "../state/types";
 import type { DayFlowAgentContext } from "./context";
+import { uiActionFlowSchema, type UIActionResult } from "./ui-action-tool";
 import {
   actionNeedsPlaceContext,
   applyActionToState,
@@ -16,6 +18,12 @@ import {
 
 const MODEL_TIMEOUT_MS = 30_000;
 const MODEL_MAX_RETRIES = 2;
+
+const executeUIActionsTool = tool(async (input) => input, {
+  name: "execute_ui_actions",
+  description: "Execute existing Dayflow UI controls in order: open the active planner, change days or pace, generate, save or remove a place. Browser execution results arrive in a later step.",
+  schema: uiActionFlowSchema,
+});
 
 function text(content: unknown) {
   if (typeof content === "string") return content;
@@ -111,15 +119,15 @@ export async function runDayFlowAgent(opts: {
   runId: string;
   state: SharedAppState;
   context: DayFlowAgentContext;
+  uiActionResult?: UIActionResult;
   send: (event: AgentEvent) => void;
 }) {
   const messages = [
     new SystemMessage(`You are DayFlow, an AI copilot embedded in an existing city discovery and itinerary-planning web app.
 
-An active saved Plan may exist. Your update_app_state tool changes the browser's
-shared state; it DOES NOT directly persist to the database. After changing
-candidate places, planner settings, or the itinerary, inform the user to click
-Save Changes. Never claim data was saved unless the client confirms it.
+An active saved Plan may exist. update_app_state changes browser shared state and DOES NOT persist to the database.
+Only use execute_ui_actions/plan.save if the user explicitly asks to save.
+Never claim the Plan was saved or generated unless the browser has confirmed success.
 Adding a candidate place should preserve the current itinerary. Removing a
 place only removes scheduled stops referring to that place. Setting planner
 preferences leaves the itinerary in place but may require regeneration.
@@ -149,7 +157,22 @@ Before calling the tool, compare the requested goal against current STATE. Do no
 
 Changing location, radius, categories, environment, or resetting filters can require refreshed browser context. When fresh context is needed before finishing the goal, execute only safe actions now and set continueAfterRefresh=true. On continuation, inspect the refreshed STATE and CONTEXT and do not repeat completed actions.
 
-Changing planner fields updates the visible form immediately. It does not itself generate the itinerary; the user can use Generate itinerary in the planner workspace after settings are ready.
+Changing planner fields updates the visible form immediately; it does not generate the itinerary.
+
+Use execute_ui_actions for existing application controls rather than simulating DOM clicks.
+Available UI actions: plan.open, plan.setDays, plan.setPace, plan.generate, plan.save, plan.removePlace.
+Open the active planner before calling planner-only actions. Use only known saved place IDs for removal.
+You can request multiple ordered UI actions in one tool call. Each executes after the previous succeeds.
+The browser will report actual success or error via a continuation. Do not claim completion until that report arrives.
+If a previous UI action failed, report the failure rather than retrying it blindly.
+If the user only requested opening the planner, do not also generate or save.
+Do not save unless explicitly requested. Do not repeat UI actions already completed in the previous result.
+
+PREVIOUS_UI_ACTION_RESULT:
+${JSON.stringify(opts.uiActionResult ?? null)}
+
+CURRENT_UI:
+${JSON.stringify(opts.context.ui ?? null)}
 
 This is execution step ${opts.step} of at most ${MAX_AGENT_STEPS}.${opts.previousRunId ? ` Previous run: ${opts.previousRunId}.` : ""}
 
@@ -164,11 +187,32 @@ ${JSON.stringify(opts.context)}`),
   const modelStartedAt = Date.now();
   let result;
   try {
-    result = await model.bindTools([updateAppStateTool]).invoke(messages, { timeout: MODEL_TIMEOUT_MS, maxRetries: MODEL_MAX_RETRIES });
+    result = await model.bindTools([updateAppStateTool, executeUIActionsTool]).invoke(messages, { timeout: MODEL_TIMEOUT_MS, maxRetries: MODEL_MAX_RETRIES });
     console.log("[DayFlow][model:finish]", { runId: opts.runId, step: opts.step, durationMs: Date.now() - modelStartedAt, toolCallCount: result.tool_calls?.length ?? 0 });
   } catch (error) {
     console.error("[DayFlow][model:error]", { runId: opts.runId, step: opts.step, durationMs: Date.now() - modelStartedAt, error });
     throw error;
+  }
+
+  if ((result.tool_calls?.length ?? 0) > 1) {
+    throw new Error("Only one tool call per step is supported");
+  }
+
+  const uiCall = result.tool_calls?.find((item) => item.name === "execute_ui_actions");
+  if (uiCall) {
+    if (opts.step >= MAX_AGENT_STEPS) {
+      sendText(opts.send, "The agent step limit has been reached.");
+      return;
+    }
+
+    const flow = uiActionFlowSchema.parse(uiCall.args);
+    const toolCallId = crypto.randomUUID();
+
+    opts.send({ type: EventType.TOOL_CALL_START, toolCallId, toolCallName: "execute_ui_actions" });
+    opts.send({ type: EventType.TOOL_CALL_ARGS, toolCallId, delta: JSON.stringify(flow) });
+    opts.send({ type: EventType.TOOL_CALL_END, toolCallId });
+    // The browser executes and reports this call via continuation.
+    return;
   }
 
   const call = result.tool_calls?.find((item) => item.name === "update_app_state");
