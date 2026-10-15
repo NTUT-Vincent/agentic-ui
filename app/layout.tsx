@@ -3,6 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "@/components/dayflow/dayflow.css";
 import "./globals.css";
 import { QueryProvider } from "@/providers/query-provider";
+import { DayFlowChat } from "@/components/dayflow/dayflow-chat";
 
 export const metadata: Metadata = {
   title: "DayFlow — Agentic UI Demo",
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><body><QueryProvider>{children}</QueryProvider></body></html>;
+  return <html lang="en"><body><QueryProvider>{children}<DayFlowChat /></QueryProvider></body></html>;
 }

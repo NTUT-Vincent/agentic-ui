@@ -13,7 +13,6 @@ import { DayFlowPlaceList } from "./dayflow-place-list";
 import { DayFlowPlaceDetail } from "./dayflow-place-detail";
 import { DayFlowPlan } from "./dayflow-plan";
 import { ActivePlanPicker } from "./active-plan-picker";
-import { DayFlowChat } from "./dayflow-chat";
 import { StateActivity } from "./state-activity";
 
 const DayFlowMap = dynamic(
@@ -45,31 +44,6 @@ export function DayFlowApp({ initialPlanId }: { initialPlanId?: string }) {
   const visible = useMemo(() => getVisiblePlaces(state, allPlaces), [state, allPlaces]);
   const selected = allPlaces.find((place) => place.id === state.selection.placeId) ?? null;
 
-  const queryStatus = useMemo(
-    () => ({
-      locationKey: `${state.location.latitude}:${state.location.longitude}`,
-      placesKey: `${state.location.latitude}:${state.location.longitude}:${state.filters.radiusKm}`,
-      weatherKey: `${state.location.latitude}:${state.location.longitude}`,
-      contextKey: JSON.stringify({
-        categories: state.filters.categories,
-        environment: state.filters.environment,
-        radiusKm: state.filters.radiusKm,
-        placeIds: visible.map((place) => place.id),
-      }),
-      placesFetching: places.isFetching,
-      weatherFetching: weather.isFetching,
-    }),
-    [
-      state.location.latitude,
-      state.location.longitude,
-      state.filters.categories,
-      state.filters.environment,
-      state.filters.radiusKm,
-      visible,
-      places.isFetching,
-      weather.isFetching,
-    ],
-  );
 
   return (
     <div className="dayflow-app">
@@ -142,11 +116,6 @@ export function DayFlowApp({ initialPlanId }: { initialPlanId?: string }) {
         onAdd={plans.addPlace}
       />
       <StateActivity />
-      <DayFlowChat
-        weather={weather.data ?? null}
-        visiblePlaces={visible}
-        queryStatus={queryStatus}
-      />
     </div>
   );
 }

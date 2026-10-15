@@ -151,11 +151,11 @@ export function useActivePlan(initialPlanId?: string) {
     return result === true;
   }, [refresh]);
 
-  const saveChanges = useCallback(async () => {
+  const saveChanges = useCallback(async (options: { allowAgentRun?: boolean } = {}) => {
     const store = useDayFlowStore.getState();
     const { id, baseline, title } = store.runtime.activePlan;
     if (!id || !baseline || !title?.trim() || lock.current ||
-        store.runtime.agentStatus === "running") return false;
+        (store.runtime.agentStatus === "running" && !options.allowAgentRun)) return false;
     const snapshot = structuredClone(store.shared.plan);
     const before = structuredClone(store.runtime.activePlan);
 

@@ -4,6 +4,7 @@ import { runDayFlowAgent } from "@/lib/dayflow/agent/run-agent";
 import { sharedAppStateSchema } from "@/lib/dayflow/state/schema";
 import { MAX_AGENT_STEPS } from "@/lib/dayflow/state/types";
 import type { DayFlowAgentContext } from "@/lib/dayflow/agent/context";
+import { uiActionResultSchema, type UIActionResult } from "@/lib/dayflow/agent/ui-action-tool";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -12,6 +13,7 @@ type ContinuationInput = {
   goal?: string;
   step?: number;
   previousRunId?: string;
+  uiActionResult?: UIActionResult;
 };
 
 type AgentRequest = {
@@ -39,6 +41,13 @@ export async function POST(request: Request) {
   const step = body.continuation?.step ?? 1;
   if (!Number.isInteger(step) || step < 1 || step > MAX_AGENT_STEPS) {
     return Response.json({ error: "invalid continuation step" }, { status: 400 });
+  }
+
+  const uiResult = body.continuation?.uiActionResult === undefined
+    ? { success: true as const, data: undefined }
+    : uiActionResultSchema.safeParse(body.continuation.uiActionResult);
+  if (!uiResult.success) {
+    return Response.json({ error: "invalid UI action result" }, { status: 400 });
   }
 
   const context = body.context ?? { weather: null, visiblePlaces: [] };
@@ -69,6 +78,7 @@ export async function POST(request: Request) {
           runId,
           state: parsed.data,
           context,
+          uiActionResult: uiResult.data,
           send,
         });
         send({ type: EventType.RUN_FINISHED, threadId, runId });
