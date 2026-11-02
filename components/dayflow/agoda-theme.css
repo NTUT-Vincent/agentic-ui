@@ -1,0 +1,128 @@
+/* components/dayflow/agoda-theme.css */
+:root {
+  --travel-blue: #1769e0;
+  --travel-blue-dark: #0b397b;
+  --travel-blue-soft: #eaf2ff;
+  --travel-bg: #f4f7fc;
+  --travel-text: #152d4f;
+  --travel-muted: #65758c;
+  --travel-border: #dce5f2;
+  --travel-shadow: 0 10px 30px rgba(18, 53, 104, .07);
+}
+body, .dayflow-app { background: var(--travel-bg); color: var(--travel-text); }
+.dayflow-app { font-family: Arial, Helvetica, sans-serif; }
+.dayflow-app button, .dayflow-app input, .dayflow-app select, .dayflow-chat button, .dayflow-chat input { font: inherit; }
+.dayflow-app button, .dayflow-chat button, .dayflow-app a { transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.dayflow-app :is(button, a, input, select, textarea):focus-visible, .dayflow-chat :is(button, input):focus-visible { outline: 3px solid rgba(23, 105, 224, .3); outline-offset: 2px; }
+/* Navigation */
+.dayflow-header { background: #fff; border-bottom: 1px solid var(--travel-border); box-shadow: 0 2px 12px rgba(18, 53, 104, .04); }
+.dayflow-logo { color: var(--travel-blue); font-size: 25px; font-weight: 800; letter-spacing: -.05em; }
+.dayflow-header span, .dayflow-header p { color: var(--travel-muted); }
+.dayflow-location { border: 1px solid var(--travel-border); background: #fff; border-radius: 12px; padding: 6px; box-shadow: 0 2px 8px rgba(18, 53, 104, .04); }
+.dayflow-location input { color: var(--travel-text); }
+.dayflow-location button, .dayflow-primary, .dayflow-plan-header a, .dayflow-chat-composer button, .dayflow-chat-trigger, .dayflow-plan-write { background: var(--travel-blue); color: #fff; border: 1px solid var(--travel-blue); border-radius: 10px; font-weight: 700; }
+.dayflow-location button:hover, .dayflow-primary:not(:disabled):hover, .dayflow-plan-header a:hover, .dayflow-chat-trigger:hover { background: var(--travel-blue-dark); border-color: var(--travel-blue-dark); }
+.dayflow-trips-link, .dayflow-auth button { border: 1px solid var(--travel-border); color: var(--travel-blue-dark); border-radius: 10px; background: #fff; }
+.dayflow-trips-link:hover, .dayflow-auth button:hover { background: var(--travel-blue-soft); }
+/* Explore hero */
+.dayflow-main, .planner-shell, .my-trips-shell, .trip-details-shell { max-width: 1400px; }
+.dayflow-hero { padding: 34px 38px; border-radius: 22px; background: linear-gradient(115deg, #0b397b 0%, #1769e0 100%); color: #fff; box-shadow: var(--travel-shadow); }
+.dayflow-hero h1 { color: #fff; letter-spacing: -.035em; line-height: 1.12; }
+.dayflow-hero p, .dayflow-hero .dayflow-kicker { color: #e4efff; }
+.dayflow-kicker { color: var(--travel-blue); font-weight: 800; letter-spacing: .12em; }
+.dayflow-weather { background: rgba(255, 255, 255, .12); border: 1px solid rgba(255, 255, 255, .25); border-radius: 16px; padding: 16px 20px; color: #fff; }
+.dayflow-weather small { color: #e4efff; }
+/* Plan selection and filters */
+.dayflow-active-plan, .dayflow-plan, .planner-card, .planner-result, .my-trips-card, .my-trips-empty, .trip-details-notes, .trip-details-candidates { background: #fff; border: 1px solid var(--travel-border); border-radius: 18px; box-shadow: var(--travel-shadow); }
+.dayflow-active-plan { padding: 22px; }
+.dayflow-active-plan select, .dayflow-active-plan input, .planner-plan-title input, .planner-grid input, .planner-field textarea { border: 1px solid var(--travel-border); border-radius: 10px; color: var(--travel-text); background: #fff; }
+.dayflow-active-plan-actions a, .dayflow-active-plan button, .planner-save { border-color: var(--travel-border); color: var(--travel-blue-dark); background: #fff; border-radius: 10px; }
+.dayflow-categories { gap: 10px; margin-top: 24px; }
+.dayflow-categories button, .dayflow-toolbar button { background: #fff; color: var(--travel-text); border: 1px solid var(--travel-border); border-radius: 999px; font-weight: 600; }
+.dayflow-categories button:hover, .dayflow-toolbar button:hover { border-color: var(--travel-blue); background: var(--travel-blue-soft); }
+.dayflow-categories button.active, .dayflow-toolbar button.active { background: var(--travel-blue); color: #fff; border-color: var(--travel-blue); }
+.dayflow-toolbar > div > span { color: var(--travel-muted); font-weight: 700; }
+/* Explore map and results */
+.dayflow-content { border: 1px solid var(--travel-border); border-radius: 20px; box-shadow: var(--travel-shadow); background: #fff; }
+.dayflow-results { border-left-color: var(--travel-border); }
+.dayflow-results > header { background: #fff; border-bottom: 1px solid var(--travel-border); }
+.dayflow-results > header strong { color: var(--travel-text); font-size: 18px; }
+.dayflow-results select { border: 1px solid var(--travel-border); border-radius: 9px; padding: 8px; background: #fff; color: var(--travel-text); }
+.dayflow-place { border-bottom: 1px solid #edf1f7; gap: 12px; }
+.dayflow-place:hover { background: #f4f8ff; }
+.dayflow-place.selected { background: var(--travel-blue-soft); box-shadow: inset 4px 0 var(--travel-blue); }
+.dayflow-place strong { color: var(--travel-text); font-size: 15px; }
+.dayflow-place span, .dayflow-results header span { color: var(--travel-muted); }
+/* Place detail */
+.dayflow-detail { border: 1px solid var(--travel-border); border-radius: 20px; box-shadow: 0 20px 60px rgba(18, 53, 104, .18); color: var(--travel-text); }
+.dayflow-detail a { color: var(--travel-blue); }
+.dayflow-detail-close { color: var(--travel-muted); }
+/* Saved places */
+.dayflow-plan { align-items: stretch; padding: 22px; gap: 16px; }
+.dayflow-plan-header { justify-content: space-between; }
+.dayflow-plan-header strong { font-size: 18px; }
+.dayflow-plan-items { gap: 10px; }
+.dayflow-plan button { background: var(--travel-blue-soft); color: var(--travel-blue-dark); border: 1px solid #cfe0ff; border-radius: 999px; }
+.dayflow-plan button:hover:not(:disabled) { background: #dceaff; }
+/* Planner */
+.planner-header h1, .my-trips-header h1, .trip-details-header h1 { color: var(--travel-text); }
+.planner-header p, .my-trips-header p, .trip-details-header p { color: var(--travel-muted); }
+.planner-back { color: var(--travel-blue); font-weight: 600; }
+.planner-card, .planner-result { padding: 26px; }
+.planner-segmented button { border: 1px solid var(--travel-border); color: var(--travel-text); }
+.planner-segmented button.active { background: var(--travel-blue); border-color: var(--travel-blue); color: #fff; }
+.planner-dot { background: var(--travel-blue); }
+.planner-dot::after { background: #cfe0ff; }
+.planner-place-row { border-top-color: var(--travel-border); }
+.planner-place-row button { background: #f0f5ff; color: var(--travel-blue-dark); }
+.planner-save:hover:not(:disabled) { background: var(--travel-blue-soft); }
+/* My Trips and Trip Details */
+.my-trips-grid { gap: 20px; }
+.my-trips-card { padding: 26px; }
+.my-trips-card-link:hover { transform: translateY(-3px); box-shadow: 0 16px 36px rgba(18, 53, 104, .13); }
+.my-trips-card h2 { color: var(--travel-text); }
+.my-trips-card-action, .my-trips-link { color: var(--travel-blue); }
+.trip-details-meta span { background: var(--travel-blue-soft); border-color: #d5e5ff; color: var(--travel-blue-dark); }
+.trip-details-candidate { border-bottom-color: var(--travel-border); }
+/* AI Chat */
+.dayflow-chat-trigger { padding: 15px 20px; box-shadow: 0 10px 28px rgba(23, 105, 224, .3); }
+.dayflow-chat { border: 1px solid var(--travel-border); border-radius: 20px; box-shadow: 0 24px 70px rgba(18, 53, 104, .2); }
+.dayflow-chat > header { background: var(--travel-blue); color: #fff; border-bottom: 0; }
+.dayflow-chat > header small, .dayflow-chat > header button { color: #e4efff; }
+.dayflow-chat-message.user { background: var(--travel-blue); color: #fff; }
+.dayflow-chat-message.assistant { background: #f0f5fc; color: var(--travel-text); }
+.dayflow-chat-composer { border-top: 1px solid var(--travel-border); }
+.dayflow-chat-composer input { border: 1px solid var(--travel-border); }
+.dayflow-agent-action { background: #f8faff; border-color: var(--travel-border); }
+.dayflow-agent-action-icon { background: var(--travel-blue-soft); color: var(--travel-blue); }
+/* Responsive */
+@media (max-width: 900px) {
+  .dayflow-hero { padding: 26px; gap: 20px; }
+  .dayflow-content { height: auto; }
+  .dayflow-results { border-left: 0; border-top: 1px solid var(--travel-border); }
+}
+@media (max-width: 700px) {
+  .dayflow-app, .planner-app { min-width: 0; }
+  .dayflow-header { padding: 14px 16px; }
+  .dayflow-header-actions { min-width: 0; }
+  .dayflow-location { min-width: 0; width: 100%; }
+  .dayflow-hero { flex-direction: column; align-items: stretch; padding: 24px 20px; }
+  .dayflow-hero h1 { font-size: clamp(27px, 7vw, 34px); }
+  .dayflow-weather { align-items: flex-start; }
+  .dayflow-active-plan, .dayflow-plan, .planner-card, .planner-result { padding: 18px; }
+  .dayflow-toolbar { gap: 12px; }
+  .dayflow-categories { gap: 8px; }
+  .dayflow-categories button, .dayflow-toolbar button { padding: 9px 12px; min-height: 40px; }
+  .dayflow-content { border-radius: 16px; }
+  .dayflow-map { height: 340px; }
+  .dayflow-detail { left: 12px; right: 12px; bottom: 88px; width: auto; max-height: 65dvh; overflow-y: auto; }
+  .dayflow-chat { right: 12px; bottom: 12px; width: calc(100vw - 24px); height: min(650px, calc(100dvh - 24px)); }
+  .dayflow-chat-trigger { right: 16px; bottom: 16px; }
+  .planner-header-actions, .planner-action-buttons { width: 100%; }
+  .planner-action-buttons > button { flex: 1 1 160px; }
+  .planner-layout, .planner-grid { grid-template-columns: minmax(0, 1fr); }
+  .my-trips-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dayflow-app *, .dayflow-chat * { transition-duration: .01ms !important; animation-duration: .01ms !important; }
+}
