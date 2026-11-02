@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "leaflet/dist/leaflet.css";
 import "@/components/dayflow/dayflow.css";
 import "./globals.css";
+import "@/components/dayflow/agoda-theme.css";
 import { QueryProvider } from "@/providers/query-provider";
 import { DayFlowChat } from "@/components/dayflow/dayflow-chat";
 
